@@ -1,0 +1,102 @@
+---
+title: "HonorsClustering"
+author: "Fiona Adams"
+date: "9/26/2019"
+output: html_document
+---
+TRY 1:
+Resource: https://medium.com/@SAPCAI/text-clustering-with-r-an-introduction-for-data-scientists-c406e7454e76
+```{r}
+Section1 <- head(AndrewTuttle, 1)
+```
+
+```{r}
+corpus = tm::Corpus(tm::VectorSource(Section1))
+corpus.cleaned <- tm::tm_map(corpus, function(x) iconv(x, to='UTF-8-MAC', sub='byte'))  
+corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::removeWords, tm::stopwords('english')) # Removing stop-words 
+corpus.cleaned <- tm::tm_map(corpus, tm::stemDocument, language = "english") # Stemming the words  
+corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::stripWhitespace) # Trimming excessive whitespaces
+
+tdm <- tm::DocumentTermMatrix(corpus.cleaned) 
+tdm.tfidf <- tm::weightTfIdf(tdm)
+
+tdm.tfidf <- tm::removeSparseTerms(tdm.tfidf, 0.999) 
+tfidf.matrix <- as.matrix(tdm.tfidf) 
+# Cosine distance matrix (useful for specific clustering algorithms) 
+dist.matrix = proxy::dist(tfidf.matrix, method = "cosine")
+```
+```{r}
+#clustering.kmeans <- kmeans(tfidf.matrix, truth.K) 
+#clustering.hierarchical <- hclust(dist.matrix, method = "ward.D2") 
+clustering.dbscan <- dbscan::hdbscan(dist.matrix, minPts = 10)
+```
+
+TRY 2:
+Resource: https://cran.r-project.org/web/packages/textmineR/vignettes/b_document_clustering.html
+
+```{r}
+library(readr)
+AndrewTuttle <- read_delim("AndrewTuttle.txt", 
+    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+docs <- head(AndrewTuttle, 1)
+```
+
+
+```{r}
+library(textmineR)
+dtm <- CreateDtm(doc_vec = docs, # character vector of documents
+                 doc_names = docs, # document names
+                 ngram_window = c(1, 2), # minimum and maximum n-gram length
+                 stopword_vec = c(stopwords::stopwords("en"), # stopwords from tm
+                                  stopwords::stopwords(source = "smart")), # this is the default value
+                 lower = TRUE, # lowercase - this is the default value
+                 remove_punctuation = TRUE, # punctuation - this is the default
+                 remove_numbers = TRUE, # numbers - this is the default
+                 verbose = FALSE, # Turn off status bar for this demo
+                 cpus = 2) # default is all available cpus on the system
+
+# construct the matrix of term counts to get the IDF vector
+tf_mat <- TermDocFreq(dtm)
+```
+```{r}
+# TF-IDF and cosine similarity
+tfidf <- t(dtm[ , tf_mat$term ]) * tf_mat$idf
+
+tfidf <- t(tfidf)
+
+csim <- tfidf / sqrt(rowSums(tfidf * tfidf))
+
+csim <- csim %*% t(csim)
+
+#Nas included
+cdist <- as.dist(1 - csim)
+
+#But removing them removes everything--help!
+x = as.matrix(cdist)
+x = x[rowSums(is.na(x)) == 0, colSums(is.na(x)) == 0, drop = FALSE]
+cdistremoved <- as.dist(x)
+```
+
+```{r}
+#But hclust doesn't work with Nas involved in the dist function
+hc <- stats::hclust(cdist, "ward.D")
+
+clustering <- cutree(hc, 10)
+
+plot(hc, main = "Hierarchical clustering of 100 NIH grant abstracts",
+     ylab = "", xlab = "", yaxt = "n")
+
+rect.hclust(hc, 10, border = "red")
+```
+
+
+
+
+
+
+
+
+
+
+
+
