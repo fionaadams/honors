@@ -21,7 +21,7 @@ library(tidyverse)
 SCleanTuttle <- AndrewTuttle %>% 
   tolower() %>%
   str_replace_all("ms.", "miss") %>%
-  str_split("\\. ") %>%
+  str_split("\\. | \\? | \\! ") %>%
   as.data.frame()
 
 colnames(SCleanTuttle)[1] <- "sentences"
@@ -57,6 +57,10 @@ adjectives <- txt_freq(adjectives$token)
 top25adjectives <- head(adjectives$key, 25)
 
 #Noun-adjective phrases
+#Get these for other interviews--treat these as broad themes, partial string matching between interviews -- distance between strings using stringr, ex. disabled vs disability (get the root of the word--stemming!) Stem top phrases, and in theory the stemmed version should be the same. 
+#CRAN task view nlp, RWeka? See when last updated
+#perhaps? Get words from Amy, map those to words that are related ex. education --> med school, grade school, first grade
+#Use these phrases to create variables, str_count how many times a phrase is within a sentence
 phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
                        relevant = x$upos %in% c("NOUN", "ADJ"))
 phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
@@ -66,12 +70,11 @@ top25phrases <- head(phrases$key, 25)
 #Figure out: how to take out one letter words from sentence-level analysis!
 x$phrase_tag <- as_phrasemachine(x$upos, type = "upos")
 stats <- keywords_phrases(x = x$phrase_tag, term = tolower(x$token), 
-                          pattern = "(A|N)*N(P+D*(A|N)*N)*", 
+                          pattern = "(A|N)*N(P+D*(A|N)*N)*", #regular expression pattern
                           is_regex = TRUE, detailed = FALSE)
 stats <- subset(stats, ngram > 1 & freq > 3)
 stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
 top25keyphrases <- head(stats$key, 25)
-top25keyphrases
 ```
 
 ```{r}
