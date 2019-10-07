@@ -4,98 +4,82 @@ author: "Fiona Adams"
 date: "9/26/2019"
 output: html_document
 ---
-TRY 1:
-Resource: https://medium.com/@SAPCAI/text-clustering-with-r-an-introduction-for-data-scientists-c406e7454e76
-```{r}
-Section1 <- head(AndrewTuttle, 1)
-```
-
-```{r}
-corpus = tm::Corpus(tm::VectorSource(Section1))
-corpus.cleaned <- tm::tm_map(corpus, function(x) iconv(x, to='UTF-8-MAC', sub='byte'))  
-corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::removeWords, tm::stopwords('english')) # Removing stop-words 
-corpus.cleaned <- tm::tm_map(corpus, tm::stemDocument, language = "english") # Stemming the words  
-corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::stripWhitespace) # Trimming excessive whitespaces
-
-tdm <- tm::DocumentTermMatrix(corpus.cleaned) 
-tdm.tfidf <- tm::weightTfIdf(tdm)
-
-tdm.tfidf <- tm::removeSparseTerms(tdm.tfidf, 0.999) 
-tfidf.matrix <- as.matrix(tdm.tfidf) 
-# Cosine distance matrix (useful for specific clustering algorithms) 
-dist.matrix = proxy::dist(tfidf.matrix, method = "cosine")
-```
-```{r}
-#clustering.kmeans <- kmeans(tfidf.matrix, truth.K) 
-#clustering.hierarchical <- hclust(dist.matrix, method = "ward.D2") 
-clustering.dbscan <- dbscan::hdbscan(dist.matrix, minPts = 10)
-```
-
-TRY 2:
-Resource: https://cran.r-project.org/web/packages/textmineR/vignettes/b_document_clustering.html
+Resources:
+http://www.mjdenny.com/Text_Processing_In_R.html
 
 ```{r}
 library(readr)
 AndrewTuttle <- read_delim("AndrewTuttle.txt", 
     "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
-docs <- head(AndrewTuttle, 1)
-```
-
-
-```{r}
-library(textmineR)
-dtm <- CreateDtm(doc_vec = docs, # character vector of documents
-                 doc_names = docs, # document names
-                 ngram_window = c(1, 2), # minimum and maximum n-gram length
-                 stopword_vec = c(stopwords::stopwords("en"), # stopwords from tm
-                                  stopwords::stopwords(source = "smart")), # this is the default value
-                 lower = TRUE, # lowercase - this is the default value
-                 remove_punctuation = TRUE, # punctuation - this is the default
-                 remove_numbers = TRUE, # numbers - this is the default
-                 verbose = FALSE, # Turn off status bar for this demo
-                 cpus = 2) # default is all available cpus on the system
-
-# construct the matrix of term counts to get the IDF vector
-tf_mat <- TermDocFreq(dtm)
-```
-```{r}
-# TF-IDF and cosine similarity
-tfidf <- t(dtm[ , tf_mat$term ]) * tf_mat$idf
-
-tfidf <- t(tfidf)
-
-csim <- tfidf / sqrt(rowSums(tfidf * tfidf))
-
-csim <- csim %*% t(csim)
-
-#Nas included
-cdist <- as.dist(1 - csim)
-
-#But removing them removes everything--help!
-x = as.matrix(cdist)
-x = x[rowSums(is.na(x)) == 0, colSums(is.na(x)) == 0, drop = FALSE]
-cdistremoved <- as.dist(x)
 ```
 
 ```{r}
-#But hclust doesn't work with Nas involved in the dist function
-hc <- stats::hclust(cdist, "ward.D")
+library(stringr)
+library(tidyverse)
 
-clustering <- cutree(hc, 10)
+#Clean Andrew Tuttle: sentence-level analysis
+SCleanTuttle <- AndrewTuttle %>% 
+  tolower() %>%
+  str_replace_all("ms.", "miss") %>%
+  str_split("\\. ") %>%
+  as.data.frame()
 
-plot(hc, main = "Hierarchical clustering of 100 NIH grant abstracts",
-     ylab = "", xlab = "", yaxt = "n")
+colnames(SCleanTuttle)[1] <- "sentences"
+SCleanTuttle$sentences <- as.character(SCleanTuttle$sentences)
 
-rect.hclust(hc, 10, border = "red")
+#Clean Andrew Tuttle: word-level analysis
+WCleanTuttle <- AndrewTuttle %>% 
+  tolower() %>%
+  str_replace_all("[^a-zA-Z\\s]", " ") %>% #Remove all punctuation 
+  str_replace_all("[\\s]+", " ") %>% #Shrink to one white space
+  str_extract_all("\\w{3,}") %>% #get rid of one or two letter words ex. i, or
+  as.data.frame()
 ```
 
+```{r} 
+library(udpipe)
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
 
+s <- udpipe_annotate(udmodel_english, SCleanTuttle$sentences)
+x <- data.frame(s)
+```
 
+```{r}
+#Nouns
+nouns <- subset(x, upos %in% c("NOUN")) 
+nouns <- txt_freq(nouns$token)
+top25nouns <- head(nouns$key, 25)
 
+#Adjectives
+adjectives <- subset(x, upos %in% c("ADJ")) 
+adjectives <- txt_freq(adjectives$token)
+top25adjectives <- head(adjectives$key, 25)
 
+#Noun-adjective phrases
+phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("NOUN", "ADJ"))
+phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
+top25phrases <- head(phrases$key, 25)
 
+#Key phrases in general
+#Figure out: how to take out one letter words from sentence-level analysis!
+x$phrase_tag <- as_phrasemachine(x$upos, type = "upos")
+stats <- keywords_phrases(x = x$phrase_tag, term = tolower(x$token), 
+                          pattern = "(A|N)*N(P+D*(A|N)*N)*", 
+                          is_regex = TRUE, detailed = FALSE)
+stats <- subset(stats, ngram > 1 & freq > 3)
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+top25keyphrases <- head(stats$key, 25)
+top25keyphrases
+```
 
-
+```{r}
+#How to make a new column for each keyword, automatically??
+#Can make a column indicating whether the sentence has a word, but not more than that
+SCleanTuttle <- SCleanTuttle %>%
+  mutate()
+```
 
 
 
