@@ -6,82 +6,104 @@ output: html_document
 ---
 Resources:
 http://www.mjdenny.com/Text_Processing_In_R.html
-
 ```{r}
 library(readr)
-AndrewTuttle <- read_delim("AndrewTuttle.txt", 
-    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+library(stringr)
+library(tidyverse)
+library(udpipe)
+library(corpus)
 ```
 
 ```{r}
-library(stringr)
-library(tidyverse)
+AndrewTuttle <- read_delim("AndrewTuttle.txt", 
+    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+MarvinSeppala <- read_delim("MarvinSeppalaPart1.txt", 
+    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+```
 
-#Clean Andrew Tuttle: sentence-level analysis
-SCleanTuttle <- AndrewTuttle %>% 
+```{r}
+cleaninterview <- function(interview) {
+  interview %>% 
   tolower() %>%
   str_replace_all("ms.", "miss") %>%
   str_split("\\. | \\? | \\! ") %>%
   as.data.frame()
+}
 
-colnames(SCleanTuttle)[1] <- "sentences"
-SCleanTuttle$sentences <- as.character(SCleanTuttle$sentences)
-
-#Clean Andrew Tuttle: word-level analysis
-WCleanTuttle <- AndrewTuttle %>% 
+cleaninterviewbyword <- function(interview) {
+  interview %>% 
   tolower() %>%
   str_replace_all("[^a-zA-Z\\s]", " ") %>% #Remove all punctuation 
   str_replace_all("[\\s]+", " ") %>% #Shrink to one white space
   str_extract_all("\\w{3,}") %>% #get rid of one or two letter words ex. i, or
   as.data.frame()
-```
+}
 
-```{r} 
-library(udpipe)
-ud_model <- udpipe_download_model(language = "english")
-udmodel_english <- udpipe_load_model(ud_model$file_model)
+#This doesn't work :( Can't do it in dplyr either! Help!!
+changecolname <- function(interview) {
+  colnames(interview)[1] <- "sentences"
+  interview$sentences <- as.character(interview$sentences)
+}
 
-s <- udpipe_annotate(udmodel_english, SCleanTuttle$sentences)
-x <- data.frame(s)
+CleanTuttle <- cleaninterview(AndrewTuttle)
+CleanTuttle[[1]] <- as.character(CleanTuttle[[1]])
+
+CleanSeppala <- cleaninterview(MarvinSeppala)
+CleanSeppala[[1]] <- as.character(CleanSeppala[[1]])
 ```
 
 ```{r}
-#Nouns
-nouns <- subset(x, upos %in% c("NOUN")) 
-nouns <- txt_freq(nouns$token)
-top25nouns <- head(nouns$key, 25)
+getkeyphrases <- function(interview){
+  s <- udpipe_annotate(udmodel_english, interview[[1]])
+  x <- data.frame(s)
+  phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("NOUN", "ADJ"))
+  phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
+  top25phrases <- head(phrases$key, 25)
+  stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
+  #need help on for loop :(
+  # for (i in 1:25) {
+  # do.call("rbind", list(stemmedphrases[[i]], stemmedphrases[[i+1]]))
+  # }
+  final <- do.call("rbind", list(stemmedphrases[[1]], stemmedphrases[[2]], stemmedphrases[[3]],    stemmedphrases[[4]], stemmedphrases[[5]], stemmedphrases[[6]], stemmedphrases[[7]], stemmedphrases[[8]], stemmedphrases[[9]], stemmedphrases[[10]])) %>% 
+    as.data.frame() %>% 
+    mutate(phrases = paste(V1, " ", V2)) %>%
+    select(phrases)
+  return(final)
+}
 
-#Adjectives
-adjectives <- subset(x, upos %in% c("ADJ")) 
-adjectives <- txt_freq(adjectives$token)
-top25adjectives <- head(adjectives$key, 25)
+bindphrases <- function(interview1, interview2){
+  cbind(interview1, interview2)
+}
 
-#Noun-adjective phrases
+tuttlephrases <- getkeyphrases(CleanTuttle)
+seppalaphrases <- getkeyphrases(CleanSeppala)
+cbind(tuttlephrases, seppalaphrases)
+```
+```{r}
+colnames(CleanTuttle)[1] <- "sentences"
+
+firstphrase <- tuttlephrases %>% head(1) %>% sapply(as.character)
+
+countuse <- function(phrase, data){
+  data %>% summarize(count = sum(grepl(phrase, CleanTuttle[1])))
+}
+
+countuse(firstphrase, CleanTuttle)
+
+as.data.frame(grepl(firstphrase, CleanTuttle$sentences))
+as.data.frame(str_detect(CleanTuttle$sentences, firstphrase))
+```
+
+```{r}
 #Get these for other interviews--treat these as broad themes, partial string matching between interviews -- distance between strings using stringr, ex. disabled vs disability (get the root of the word--stemming!) Stem top phrases, and in theory the stemmed version should be the same. 
 #CRAN task view nlp, RWeka? See when last updated
 #perhaps? Get words from Amy, map those to words that are related ex. education --> med school, grade school, first grade
 #Use these phrases to create variables, str_count how many times a phrase is within a sentence
-phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
-                       relevant = x$upos %in% c("NOUN", "ADJ"))
-phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
-top25phrases <- head(phrases$key, 25)
-
-#Key phrases in general
-#Figure out: how to take out one letter words from sentence-level analysis!
-x$phrase_tag <- as_phrasemachine(x$upos, type = "upos")
-stats <- keywords_phrases(x = x$phrase_tag, term = tolower(x$token), 
-                          pattern = "(A|N)*N(P+D*(A|N)*N)*", #regular expression pattern
-                          is_regex = TRUE, detailed = FALSE)
-stats <- subset(stats, ngram > 1 & freq > 3)
-stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
-top25keyphrases <- head(stats$key, 25)
-```
-
-```{r}
 #How to make a new column for each keyword, automatically??
 #Can make a column indicating whether the sentence has a word, but not more than that
-SCleanTuttle <- SCleanTuttle %>%
-  mutate()
 ```
 
 
