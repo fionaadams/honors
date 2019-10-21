@@ -4,6 +4,10 @@ author: "Fiona Adams"
 date: "9/26/2019"
 output: html_document
 ---
+
+#cleaning interviews
+#function to convert word docs to text files?
+#google docs package for R
 Resources:
 http://www.mjdenny.com/Text_Processing_In_R.html
 ```{r}
@@ -24,6 +28,7 @@ udmodel_english <- udpipe_load_model(ud_model$file_model)
 ```
 
 ```{r}
+#get rid of the "c(""
 cleaninterview <- function(interview) {
   interview %>% 
   tolower() %>%
@@ -32,67 +37,27 @@ cleaninterview <- function(interview) {
   as.data.frame()
 }
 
-cleaninterviewbyword <- function(interview) {
-  interview %>% 
-  tolower() %>%
-  str_replace_all("[^a-zA-Z\\s]", " ") %>% #Remove all punctuation 
-  str_replace_all("[\\s]+", " ") %>% #Shrink to one white space
-  str_extract_all("\\w{3,}") %>% #get rid of one or two letter words ex. i, or
-  as.data.frame()
-}
-
 #This doesn't work :( Can't do it in dplyr either! Help!!
 changecolname <- function(interview) {
   colnames(interview)[1] <- "sentences"
   interview$sentences <- as.character(interview$sentences)
+  interview
 }
 
 #Workaround -- done manually for each interview
 CleanTuttle <- cleaninterview(AndrewTuttle)
-CleanTuttle[[1]] <- as.character(CleanTuttle[[1]])
+CleanTuttle <- changecolname(CleanTuttle)
+# CleanTuttle[[1]] <- as.character(CleanTuttle[[1]])
 
 CleanSeppala <- cleaninterview(MarvinSeppala)
-CleanSeppala[[1]] <- as.character(CleanSeppala[[1]])
+CleanSeppala <- changecolname(CleanSeppala)
+# CleanSeppala[[1]] <- as.character(CleanSeppala[[1]])
 ```
-
-```{r}
-#Gets phrases in list form
-getkeyphrases <- function(interview){
-  s <- udpipe_annotate(udmodel_english, interview[[1]])
-  x <- data.frame(s)
-  phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
-                       relevant = x$upos %in% c("NOUN", "ADJ"))
-  phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
-  top25phrases <- head(phrases$key, 25)
-  stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
-
-  #need help on for loop :(
-  # for (i in 1:25) {
-  # do.call("rbind", list(stemmedphrases[[i]], stemmedphrases[[i+1]]))
-  # }
-  
-  #Workaround: manually bind top 10 phrases
-  final <- do.call("rbind", list(stemmedphrases[[1]], stemmedphrases[[2]], stemmedphrases[[3]],    stemmedphrases[[4]], stemmedphrases[[5]], stemmedphrases[[6]], stemmedphrases[[7]], stemmedphrases[[8]], stemmedphrases[[9]], stemmedphrases[[10]])) %>% 
-    as.data.frame() %>% 
-    mutate(phrases = paste(V1, " ", V2)) %>%
-    select(phrases) %>%
-    as.list()
-  return(final)
-}
-
-bindphrases <- function(interview1, interview2){
-  cbind(interview1, interview2)
-}
-
-tuttlephrases <- getkeyphrases(CleanTuttle)
-seppalaphrases <- getkeyphrases(CleanSeppala)
-```
-
-Getting string distance: some first tries
 
 *Goal: find words that match either in idea or substance across multiple interviews*
 ```{r}
-#Gets phrases in separate word form
+#Gets phrases in df form
+#Alphabetize based on function below here!
 getkeyphrasessep <- function(interview){
   s <- udpipe_annotate(udmodel_english, interview[[1]])
   x <- data.frame(s)
@@ -101,12 +66,17 @@ getkeyphrasessep <- function(interview){
   phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
   top25phrases <- head(phrases$key, 25)
   stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
-  return(stemmedphrases)
+  listofphrases <- lapply(stemmedphrases, function(x){
+  paste(x, collapse=" ")
+  })
+  dfphrases <- data.frame(theme = unlist(listofphrases))
+  return(dfphrases)
 }
 
 tuttlephraselist <- getkeyphrasessep(CleanTuttle)
 seppalaphraselist <- getkeyphrasessep(CleanSeppala)
-
+tuttlephraselist
+seppalaphraselist
 tuttlephraselist %in% seppalaphraselist
 ```
 
@@ -141,35 +111,18 @@ tuttlephrasedf
 seppalaphrasedf
 ```
 
+#Need partial string matching because stemmed words, ex. medic school
+
 ```{r}
-#https://www.rdocumentation.org/packages/DescTools/versions/0.99.29/topics/StrDist
-library(DescTools)
-StrDist(tuttlephrasedf[[1]], seppalaphrasedf[[1]], method = "levenshtein", mismatch = 1, gap = 1, ignore.case = FALSE)
+y<- c("I am looking for a dog", "looking for a new dog", "a dog", "I am just looking")
+grep("looking.*dog",y, value=T)
 ```
 
 ```{r}
-#https://www.r-bloggers.com/natural-language-processing-in-r-edit-distance/
-tuttlephrasedf[[1]]
-seppalaphrasedf[[1]]
-adist(tuttlephrasedf[[1]],seppalaphrasedf[[1]])
-```
-
-```{r}
-colnames(CleanTuttle)[1] <- "sentences"
-
-firstphrase <- tuttlephrases %>% head(1) %>% sapply(as.character)
-
-countuse <- function(phrase, data){
-  data %>% summarize(count = sum(grepl(phrase, CleanTuttle[1])))
-}
-
-#Counts use of first phrase in first row of cleantuttle
-countuse(firstphrase, CleanTuttle)
-```
-
-
-```{r}
+pmatch("swiss institute", CleanTuttle$sentences, duplicates.ok=TRUE)
 as.data.frame(grepl(firstphrase, CleanTuttle$sentences))
+#test whether any are 
+any(dftest[[1]])
 as.data.frame(str_detect(CleanTuttle$sentences, firstphrase))
 ```
 
