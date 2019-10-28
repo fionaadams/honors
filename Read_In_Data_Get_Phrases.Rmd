@@ -1,0 +1,67 @@
+---
+title: "HonorsClustering"
+author: "Fiona Adams"
+date: "9/26/2019"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(stringr)
+library(tidyverse)
+library(udpipe)
+library(corpus)
+library(plyr)
+source("Functions.R")
+```
+
+```{r}
+AndrewTuttle <- read_delim("AndrewTuttle.txt", 
+    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+MarvinSeppala <- read_delim("MarvinSeppalaPart1.txt", 
+    "^", escape_double = FALSE, trim_ws = TRUE, col_names=FALSE)
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+```
+
+```{r}
+#Clean dataset
+CleanTuttle <- changecolname(cleaninterview(AndrewTuttle))
+CleanSeppala <- changecolname(cleaninterview(MarvinSeppala))
+
+#Get list of phrases
+tuttlephraselist <- getkeyphrases(CleanTuttle)
+seppalaphraselist <- getkeyphrases(CleanSeppala)
+tuttlephraselist
+seppalaphraselist
+tuttlephraselist %in% seppalaphraselist
+```
+
+#Need partial string matching because stemmed words, ex. medic school
+```{r}
+y <- c("I am looking for a dog", "looking for a new dog", "a dog", "I am just looking")
+y
+grep("looking.*dog",y, value=T)
+
+test<- tuttlephraselist %>% lapply(as.character) %>% lapply(as.vector)
+test
+
+grep("first year", test, value=T)
+```
+
+Ideas to complete:
+• Get these for other interviews--treat these as broad themes, partial string matching between interviews -- distance between strings using stringr, ex. disabled vs disability (get the root of the word--stemming!) Stem top phrases, and in theory the stemmed version should be the same. 
+• CRAN task view nlp, RWeka? See when last updated
+• perhaps? Get words from Amy, map those to words that are related ex. education --> med school, grade school, first grade
+• Use these phrases to create variables, str_count how many times a phrase is within a sentence
+• How to make a new column for each keyword, automatically??
+• Can make a column indicating whether the sentence has a word, but not more than that
+
+Try at a later date: 
+https://cran.r-project.org/web/packages/textmineR/vignettes/b_document_clustering.html
+https://cran.r-project.org/web/packages/tidytext/vignettes/tf_idf.html
+https://cran.r-project.org/web/packages/corpus/vignettes/stemmer.html
+
+
+
+

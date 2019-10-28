@@ -1,0 +1,22 @@
+---
+title: "Partial_Str_Matching"
+output: html_document
+---
+```{r}
+source("Data.R")
+```
+
+```{r}
+tuttlephraselist
+```
+
+```{r}
+y <- c("I am looking for a dog", "looking for a new dog", "a dog", "I am just looking")
+y
+grep("looking.*dog",y, value=T)
+
+test<- tuttlephraselist %>% lapply(as.character) %>% lapply(as.vector)
+test
+grep("first year", test, value=T)
+```
+
