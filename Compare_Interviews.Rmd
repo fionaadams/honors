@@ -1,0 +1,38 @@
+---
+title: "Compare_Interviews"
+output: html_document
+---
+https://cran.r-project.org/web/packages/RKEA/vignettes/kea.pdf
+
+```{r}
+require(readtext)
+library(dplyr)
+source("Functions.R")
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+allphrases(dat_word)
+```
+
+http://zipfr.r-forge.r-project.org/
+```{r}
+getkeyphrases <- function(interview){
+  s <- udpipe_annotate(udmodel_english, interview[[1]])
+  x <- data.frame(s)
+  phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                           relevant = x$upos %in% c("NOUN", "ADJ"))
+  phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
+  top25phrases <- head(phrases$key, 25)
+  stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
+  listofphrases <- lapply(stemmedphrases, function(x){
+    paste(x, collapse=" ")
+  })
+  dfphrases <- data.frame(theme = unlist(listofphrases)) %>%
+    #Alphabetize
+    aaply(1, sort) %>%
+    as.data.frame() %>%
+    t() %>%
+    as.data.frame()
+  return(dfphrases)
+}
+```
+

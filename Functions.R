@@ -1,3 +1,12 @@
+library(readr)
+library(stringr)
+library(tidyverse)
+library(udpipe)
+library(corpus)
+library(plyr)
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+
 cleaninterview <- function(interview) {
   interview %>% 
     tolower() %>%
@@ -31,3 +40,21 @@ getkeyphrases <- function(interview){
     as.data.frame()
   return(dfphrases)
 }
+
+
+allphrases <- function(interviewfolder){
+  interview_out <- rep(0, nrow(dat_word))
+  
+  for (i in 1:nrow(dat_word)) {
+    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
+    output <- getkeyphrases(cleandat)
+    interview_out[[i]] <- output
+  }
+  
+  words <- as.data.frame(interview_out)
+  colnames(words) <- as.vector(dat_word$doc_id)
+  return(words)
+}
+
+
+
