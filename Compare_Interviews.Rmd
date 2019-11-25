@@ -2,37 +2,118 @@
 title: "Compare_Interviews"
 output: html_document
 ---
-https://cran.r-project.org/web/packages/RKEA/vignettes/kea.pdf
 
-```{r}
+• RQDA is still fully manual. We want to improve upon thant!
+```{r message=FALSE}
 require(readtext)
 library(dplyr)
 source("Functions.R")
 
 dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
-allphrases(dat_word)
+words <- allphrases(dat_word)
+```
+
+```{r}
+#Let's try topic modeling from https://www.tidytextmining.com/topicmodeling.html
+require(quanteda)
+require(tm)
+require(tidytext)
+#Make simple corpus
+corpus <- Corpus(VectorSource(dat_word)) 
+
+#Clean simple corpus
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords())
+corpus <- tm_map(corpus, stemDocument)
+corpus <- tm_map(corpus, stripWhitespace)
+
+#Turn into complex corpus
+corpus <- corpus(corpus)
+
+#Analyze
+corpusdfm <- quanteda::dfm(corpus, verbose = FALSE)
+
+tidycorpus <- tidy(corpusdfm)
+
+dtm <- tidycorpus %>% cast_dtm(document, term, count)
+```
+
+Topic modeling: Latent Dirichlet Allocation
+```{r}
+library(topicmodels)
+
+# set a seed so that the output of the model is predictable
+ap_lda <- LDA(dtm, k = 10, control = list(seed = 1234))
+ap_lda
+
+ap_topics <- tidy(ap_lda, matrix = "beta")
+ap_topics
+```
+
+Visualize the topics:
+```{r}
+library(ggplot2)
+library(dplyr)
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
 ```
 
 http://zipfr.r-forge.r-project.org/
-```{r}
-getkeyphrases <- function(interview){
-  s <- udpipe_annotate(udmodel_english, interview[[1]])
-  x <- data.frame(s)
-  phrases <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
-                           relevant = x$upos %in% c("NOUN", "ADJ"))
-  phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
-  top25phrases <- head(phrases$key, 25)
-  stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
-  listofphrases <- lapply(stemmedphrases, function(x){
-    paste(x, collapse=" ")
-  })
-  dfphrases <- data.frame(theme = unlist(listofphrases)) %>%
-    #Alphabetize
-    aaply(1, sort) %>%
-    as.data.frame() %>%
-    t() %>%
-    as.data.frame()
-  return(dfphrases)
-}
-```
 
+package wordnet--maybe?
+try to categorize these stemmed phrases somehow
+
+udpipe part of speech for each word
+web scrape thesaurus.com
+
+list of adjectives, find synonyms and dataset of synonyms
+use one word to represent all of the synonyms
+
+char  | synonym list as column
+------------------------------
+small | little, tiny, etc.
+
+little bit --> replace "little" with mapped category label, ex. "small", but keep "bit" as is.
+once this happens, how much overlap is there between interviews?
+
+1st: compare phrases between interviews directly
+
+plot of comparison: overlap between interviews
+
+option: to join all of the phrases together and then find the top phrases out of those
+
+° Get themes from Amy, then syn(theme word) and map back to the noun phrases we found
+° Put existing noun phrases into broader categories
+
+° Couple topics by hand: ex. drugs/school (so match sophomore, high school and first grade, elementary school). Then, see what's left. What else is in the top 25 once I take those out?
+° Low-hanging fruit
+° Then use syn package
+
+Get the low-hanging fruit! The themes we *know* we're looking for
+
+Eventually:
+Intersect the synonyms ex. hurt/harm, school/education/learning --> more useful result of synonyms, pares it down
+Then, search for the list of intersected (stemmed) synonyms within the words
+
+
+
+
+Potential solutions:
+• qdap::word_associate -- but need rJava and having issues installing this
+• scrape relatedwords.org/relatedto/"word i'm looking at"
+• qdap::synonyms -- again, need rJava https://zhiyzuo.github.io/installation-rJava/
+• unsupervised text mining: https://orbit.openlibhums.org/article/id/408/
+• https://cran.r-project.org/web/packages/RKEA/vignettes/kea.pdf

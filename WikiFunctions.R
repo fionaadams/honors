@@ -29,8 +29,7 @@ getkeyphrases <- function(interview){
   #try other ways to get the phrases! Get more context here!
   phrases$key <- factor(phrases$keyword, levels = rev(phrases$keyword))
   top25phrases <- head(phrases$key, 25)
-  stemmedphrases <- text_tokens(top25phrases, stemmer = "en")
-  listofphrases <- lapply(stemmedphrases, function(x){
+  listofphrases <- lapply(top25phrases, function(x){
     paste(x, collapse=" ")
   })
   dfphrases <- data.frame(theme = unlist(listofphrases)) %>%

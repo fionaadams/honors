@@ -1,0 +1,106 @@
+---
+title: "Wikipedia Text Mining"
+author: "Fiona Adams"
+date: "11/22/2019"
+output: html_document
+---
+Wikipedia text mining: to find "themes" within wikipedia articles
+
+```{r}
+require(readtext)
+library(dplyr)
+source("WikiFunctions.R")
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+#words <- allphrases(dat_word)
+```
+
+
+```{r}
+library(tm)
+library(stringi)
+library(proxy)
+wiki <- "http://en.wikipedia.org/wiki/"
+titles <- c("Integral", "Riemann_integral", "Riemann-Stieltjes_integral", "Derivative",
+    "Limit_of_a_sequence", "Edvard_Munch", "Vincent_van_Gogh", "Jan_Matejko",
+    "Lev_Tolstoj", "Franz_Kafka", "J._R._R._Tolkien")
+
+#Option: use phrases we found. However, not all of them are wikipedia articles! What to do??
+#titles <- as.vector(words[[1]])
+
+articles <- character(length(titles))
+
+for (i in 1:length(titles)) {
+    articles[i] <- stri_flatten(readLines(stri_paste(wiki, titles[i])), col = " ")
+}
+
+docs <- Corpus(VectorSource(articles))
+```
+
+```{r}
+docs <- tm_map(docs, function(x) stri_replace_all_regex(x, "<.+?>", " "))
+docs <- tm_map(docs, function(x) stri_replace_all_fixed(x, "\t", " "))
+docs <- tm_map(docs, PlainTextDocument)
+docs <- tm_map(docs, stripWhitespace)
+docs <- tm_map(docs, removeWords, stopwords("english"))
+docs <- tm_map(docs, removePunctuation)
+docs <- tm_map(docs, tolower)
+```
+
+```{r}
+#Turn into complex corpus
+corpus <- corpus(docs)
+
+#Analyze
+corpusdfm <- quanteda::dfm(corpus, verbose = FALSE)
+
+tidycorpus <- tidy(corpusdfm)
+
+dtm <- tidycorpus %>% cast_dtm(document, term, count)
+
+library(topicmodels)
+
+# set a seed so that the output of the model is predictable
+ap_lda <- LDA(dtm, k = 2, control = list(seed = 1234))
+ap_lda
+
+ap_topics <- tidy(ap_lda, matrix = "beta")
+ap_topics
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
+```
+
+```{r}
+docsTDM <- TermDocumentMatrix(docs)
+
+docsdissim <- qdap::dissimilarity(docsTDM, method = "cosine")
+
+docsdissim2 <- as.matrix(docsdissim)
+rownames(docsdissim2) <- titles
+colnames(docsdissim2) <- titles
+docsdissim2
+h <- hclust(docsdissim, method = "ward")
+plot(h, labels = titles, sub = "")
+```
+
+
+
+Sources:
+https://www.r-bloggers.com/text-mining-in-r-automatic-categorization-of-wikipedia-articles/
+https://www.kdnuggets.com/2017/11/building-wikipedia-text-corpus-nlp.html
