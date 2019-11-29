@@ -5,6 +5,8 @@ date: "11/24/2019"
 output: html_document
 ---
 
+Sentence2vec or paragraph2vec
+
 ```{r message=FALSE, warning=FALSE}
 require(readtext)
 library(dplyr)
@@ -100,7 +102,7 @@ library(textTinyR)
 PATH = system.file("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx", "word_vecs.txt", package = "textTinyR")
 
 library(tokenizers)
-tok_text = tokenize_words(corpus[[1]])
+tok_text = tokenize_words(corpus[1])
 
 init = Doc2Vec$new(token_list = tok_text, word_vector_FILE = PATH)
 out = init$doc2vec_methods(method = "sum_sqrt")

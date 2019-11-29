@@ -55,3 +55,18 @@ glmnet_classifier = cv.glmnet(x = dtm_train, y = train[['sentiment']],
 print(difftime(Sys.time(), t1, units = 'sec'))
 ```
 
+
+
+
+
+
+IN PYTHON
+```{r}
+library(reticulate)
+use_python("/usr/bin/pythonw")
+```
+
+```{python}
+import pandas
+```
+
