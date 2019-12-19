@@ -4,11 +4,21 @@ author: "Fiona Adams"
 date: "12/7/2019"
 output: html_document
 ---
+-not unsupervised necessarily, just not *mind-numbingly* tedious :)
+
+-skipgram matrix! For every word, look at window before and after the word, and see how many times some other word was in the vicinity (ex. "getting")--what co-occurs? Then maybe concatenate these? Which to concatenate? (Julia Silge)
+-do LDA or some other topic modeling on phrases within paragraphs, rather than words within paragraphs
+-look through manually, see which ones are not helpful and could benefit from more context, then look at those rows within skipgram matrix (ex. getting, mean). Then, manually fuse them, ex getting_help. Re-run LDA on this.
+-future: split the docs further, maybe 3 sentences @ a time?
+
 ```{r message=FALSE}
 require(readtext)
 library(dplyr)
 library(data.table)
 library(lattice)
+library(udpipe)
+library(stringr)
+require(tibble)
 ud_model <- udpipe_download_model(language = "english")
 udmodel_english <- udpipe_load_model(ud_model$file_model)
 
@@ -100,8 +110,13 @@ only.nouns <- function(df){
 }
 
 #test: show what this does
-new$paragraphs[[1]]
+new$paragraphs[[1]] 
 only.nouns(new$paragraphs[[1]])
+
+#replace new$paragraphs[[i]] with only.nouns(new$paragraphs[[i]])
+# for(i in 1:nrow(new)) {
+#   new$paragraphs[[i]] <- only.nouns(new$paragraphs[[i]])
+# }
 ```
 
 LDA
