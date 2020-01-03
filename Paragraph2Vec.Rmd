@@ -19,6 +19,7 @@ library(lattice)
 library(udpipe)
 library(stringr)
 require(tibble)
+library(stopwords)
 ud_model <- udpipe_download_model(language = "english")
 udmodel_english <- udpipe_load_model(ud_model$file_model)
 
@@ -77,6 +78,11 @@ no.stopwords(new$paragraphs[[1]])
 for(i in 1:nrow(new)) {
   new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
 }
+```
+
+Make a .csv file for using in future
+```{r}
+write.csv(new,'cleanparagraphs.csv')
 ```
 
 Find top noun/verb phrases, filter them out

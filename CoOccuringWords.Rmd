@@ -1,0 +1,121 @@
+---
+title: "Co-occuring Words"
+author: "Fiona Adams"
+date: "12/19/2019"
+output: html_document
+---
+
+Typically, word vectors are calculated using neural networks. The approach below, of finding words that occur together in the corpus of Minnesota Opioid Project interviews, uses only counting and linear algebra. This is great because it eliminates the need for pre-trained vectors in a deep learning approach, uses familiar techniques that are relatively easy to understand, and doesn't take too long computationally [@juliasilge]. More reasons to not use word2vec are here: [@multithreaded]
+
+```{r}
+cleanparagraphs <- read.csv("cleanparagraphs.csv")
+```
+
+**Skipgram probabilities:** how often we find each word near each other word.
+**How to get these probabilities:** Define a fixed-size moving window that centers around each word. What is the probability of seeing *word1* and *word2* in this window?
+**Defining the moving window size:** When this window is bigger, the process of counting skipgrams takes longer, obviously. Julia Silge, a well-known data scientist at Stack Overflow, used windows of 8 words, so I decided to start with this. Going forward, I'm looking to take some more sophisticated steps to find the best window to use.
+**Concatenate words with high co-occuring probabilities:** If probability of co-occuring is above a certain threshold (how should we determine this threshold??) 
+
+```{r}
+#Get skipgram probabilities
+library(widyr)
+library(tidyr)
+library(tidytext)
+library(dplyr)
+
+tidy_skipgrams <- cleanparagraphs %>%
+    unnest_tokens(ngram, paragraphs, token = "ngrams", n=8) %>% #sets sliding window of 8
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
+
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+
+head(skipgram_probs) #let's look at it 
+```
+
+```{r}
+#Not super useful to have skipgram probabilities for two of the same word, ex. going going, so let's just find the probabilities for the words that are different
+
+
+#compare the words
+item1list <- as.vector(skipgram_probs$item1)
+item2list <- as.vector(skipgram_probs$item2)
+
+item_comparison <- numeric(length = length(item1list))
+for (i in 1:length(item1list)){
+  item_comparison[i] <- strcmp(item1list[[i]], item2list[[i]])
+}
+
+#returns 1s for rows where item1 and item2 are identical, and 0 for rows where item1 and item 2 are different
+item_comparison <- item_comparison %>% as.data.frame()
+```
+
+```{r}
+library(stringr)
+#get skipgram probabilities for just the words that are different from each other
+item_comparison_final <- as.data.frame(append(item_comparison, skipgram_probs)) %>% filter(. == 0)
+
+#get top 500 skipgram probabilities
+#Why 500/2 = 250 (words are shown in both orders)? Nobody knows!! Maybe make this better!!
+topprobs <- head(item_comparison_final, 500) 
+
+#make column with the words that go together, get a df with just concatenatable words + concatenated words
+topprobs <- topprobs %>% 
+  mutate(concatenate = paste(item1, item2)) %>% 
+  select(concatenate) %>% mutate(concatenated = str_replace_all(concatenate, " ", ""))
+```
+
+Next step: find where these words appear together in the corpus, and concatenate them
+```{r}
+#not working--to test, look for "like just" vs "likejust" in cleanparagraphs.
+for (i in 1:nrow(topprobs)){
+  gsub(topprobs$concatenate[i], topprobs$concatenated[i],
+       for(j in nrow(cleanparagraphs)){
+          cleanparagraphs$paragraphs[j]
+  }
+    )
+}
+```
+
+**What I want to do:**
+Find "like just"  in row 1 of cleanparagraphs, replace with "likejust"
+Find "just like" in row 1, replace with "justlike"
+Find "don't know" in row 1, replace with "don'tknow"
+
+*In other words,*
+Find word from topprobs$concatenate[1] in cleanparagraphs$paragraphs[1], and replace with word from topprobs$concatenated[1]
+etc.
+
+*In manual code:*
+gsub(topprobs$concatenate[1], topprobs$concatenated[1], cleanparagraphs$paragraphs[1])
+gsub(topprobs$concatenate[2], topprobs$concatenated[2], cleanparagraphs$paragraphs[1])
+gsub(topprobs$concatenate[3], topprobs$concatenated[3], cleanparagraphs$paragraphs[1])
+
+OR
+
+str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenate[1], topprobs$concatenated[1])
+str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenate[2], topprobs$concatenated[2])
+str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenated[3], topprobs$concatenated[3])
+
+*Non-manual code tries--currently one-sided*
+I'm able to look through one list, ex:
+paragraphstring <- "paragraph example here with the words like just"
+topprobslist <- c("like just", "just like", "don't know")
+
+Result: "paragraph example here with the words likejust"
+
+gsub(paste(topprobslist, collapse = '|'), '##NUMBER##', paragraphstring) yields Result
+mgsub(numlist, "##NUMBER##", mystring) also likely works, but need qdap and isn't working :( 
+
+BUT can't get the substitute to be the corresponding part of a second list ex. newprobslist <- c("likejust", "justlike", "don'tknow")
+
+Source: https://stackoverflow.com/questions/37183628/r-pass-a-vector-of-strings-to-replace-all-instances-within-a-string
+
+Other stackoverflow qs, ex https://stackoverflow.com/questions/41883436/remove-replace-specific-words-or-phrases-from-character-strings-r, do the same thing--can find any words within a list of words and know to replace those, but replace them all with the same thing. Not useful sadly :(
+
+Bibliography to do:
+https://juliasilge.com/blog/tidy-word-vectors/
+https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
