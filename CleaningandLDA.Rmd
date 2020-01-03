@@ -1,15 +1,9 @@
 ---
-title: "Paragraph2Vec"
+title: "CleaningandLDA"
 author: "Fiona Adams"
 date: "12/7/2019"
 output: html_document
 ---
--not unsupervised necessarily, just not *mind-numbingly* tedious :)
-
--skipgram matrix! For every word, look at window before and after the word, and see how many times some other word was in the vicinity (ex. "getting")--what co-occurs? Then maybe concatenate these? Which to concatenate? (Julia Silge)
--do LDA or some other topic modeling on phrases within paragraphs, rather than words within paragraphs
--look through manually, see which ones are not helpful and could benefit from more context, then look at those rows within skipgram matrix (ex. getting, mean). Then, manually fuse them, ex getting_help. Re-run LDA on this.
--future: split the docs further, maybe 3 sentences @ a time?
 
 ```{r message=FALSE}
 require(readtext)
@@ -24,13 +18,13 @@ ud_model <- udpipe_download_model(language = "english")
 udmodel_english <- udpipe_load_model(ud_model$file_model)
 
 dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
 ```
 
 ```{r}
 cleaninterview <- function(interview) {
   interview %>% 
     tolower() %>%
-    str_replace_all("ms.", "miss") %>%
     strsplit("\\n+") %>%
     as.data.frame()
 }
@@ -83,46 +77,6 @@ for(i in 1:nrow(new)) {
 Make a .csv file for using in future
 ```{r}
 write.csv(new,'cleanparagraphs.csv')
-```
-
-Find top noun/verb phrases, filter them out
-```{r}
-#finds parts of speech in entire corpus
-x <- udpipe_annotate(udmodel_english, x = new$paragraphs, trace = TRUE)
-x <- as.data.frame(x)
-
-#takes top 100 nouns from entire corpus
-nouns <- subset(x, upos %in% "NOUN")
-nouns <- txt_freq(x = nouns$lemma)
-nouns$key <- factor(nouns$key, levels = rev(nouns$key))
-top25nouns <- head(nouns$key, 100)
-
-#takes top 100 nouns from entire corpus
-adjs <- subset(x, upos %in% "ADJ")
-adjs <- txt_freq(x = adjs$lemma)
-adjs$key <- factor(adjs$key, levels = rev(adjs$key))
-top25adjs <- head(adjs$key, 100)
-
-#shows top 25 nouns and adjectives
-barchart(key ~ freq, data = head(nouns, 25), col = "cadetblue", main = "Most occurring nouns", xlab = "Freq")
-barchart(key ~ freq, data = head(adjs, 25), col = "cadetblue", main = "Most occurring adjectives", xlab = "Freq")
-```
-
-```{r}
-only.nouns <- function(df){
-  wordlist <- unlist(strsplit(df, " "))
-  without.stopwords <- wordlist[wordlist %in% top25nouns]
-  str_c(without.stopwords,collapse=' ')  
-}
-
-#test: show what this does
-new$paragraphs[[1]] 
-only.nouns(new$paragraphs[[1]])
-
-#replace new$paragraphs[[i]] with only.nouns(new$paragraphs[[i]])
-# for(i in 1:nrow(new)) {
-#   new$paragraphs[[i]] <- only.nouns(new$paragraphs[[i]])
-# }
 ```
 
 LDA
@@ -218,14 +172,5 @@ ap_top_terms %>%
   coord_flip() +
   scale_x_reordered()
 ```
-
-*How to label each # of rows for the name of the doc_id?*
-https://stackoverflow.com/questions/28648513/changing-column-names-in-a-list-of-data-frames-in-r
-```{r}
-colnames = as.list(dat_word$doc_id) #gives us the doc_ids as a list
-dfList <- new
-lapply(dfList, setNames, colnames) #tries to apply colnames to dfList, but not working
-```
-
 
 
