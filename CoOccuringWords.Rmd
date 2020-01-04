@@ -8,6 +8,12 @@ output: html_document
 Typically, word vectors are calculated using neural networks. The approach below, of finding words that occur together in the corpus of Minnesota Opioid Project interviews, uses only counting and linear algebra. This is great because it eliminates the need for pre-trained vectors in a deep learning approach, uses familiar techniques that are relatively easy to understand, and doesn't take too long computationally [@juliasilge]. More reasons to not use word2vec are here: [@multithreaded]
 
 ```{r}
+library(widyr)
+library(tidyr)
+library(tidytext)
+library(dplyr)
+library(stringr)
+
 cleanparagraphs <- read.csv("cleanparagraphs.csv")
 ```
 
@@ -18,11 +24,6 @@ cleanparagraphs <- read.csv("cleanparagraphs.csv")
 
 ```{r}
 #Get skipgram probabilities
-library(widyr)
-library(tidyr)
-library(tidytext)
-library(dplyr)
-
 tidy_skipgrams <- cleanparagraphs %>%
     unnest_tokens(ngram, paragraphs, token = "ngrams", n=8) %>% #sets sliding window of 8
     mutate(skipgramID = row_number()) %>% #set row number as the ID
@@ -36,7 +37,7 @@ skipgram_probs <- tidy_skipgrams %>%
 head(skipgram_probs) #let's look at it 
 ```
 
-```{r}
+```{r eval=FALSE}
 #Not super useful to have skipgram probabilities for two of the same word, ex. going going, so let's just find the probabilities for the words that are different
 
 
@@ -53,13 +54,15 @@ for (i in 1:length(item1list)){
 item_comparison <- item_comparison %>% as.data.frame()
 ```
 
-```{r}
+```{r eval=FALSE}
 library(stringr)
 #get skipgram probabilities for just the words that are different from each other
 item_comparison_final <- as.data.frame(append(item_comparison, skipgram_probs)) %>% filter(. == 0)
 
 #get top 500 skipgram probabilities
 #Why 500/2 = 250 (words are shown in both orders)? Nobody knows!! Maybe make this better!!
+## Note to Fiona: item_comparison_final has not been subset yet, so head()
+## is only going to return the rows for which item1 and item2 are identical
 topprobs <- head(item_comparison_final, 500) 
 
 #make column with the words that go together, get a df with just concatenatable words + concatenated words
@@ -68,8 +71,20 @@ topprobs <- topprobs %>%
   select(concatenate) %>% mutate(concatenated = str_replace_all(concatenate, " ", ""))
 ```
 
-Next step: find where these words appear together in the corpus, and concatenate them
+Note to Fiona: A more direct way to subset the `skipgram_probs` data frame to exclude the rows where `item1` and `item2` are the same is to use the `!=` (not equal) comparison operator within `dplyr::filter()`. It's probably better to concatenate the items with an underscore rather than joining them without a space (just for better readability and to be clear that they have been concatenated).
+
 ```{r}
+## NEW
+skipgram_probs <- skipgram_probs %>%
+    dplyr::filter(item1!=item2) %>%
+    mutate(
+        concatenate = paste(item1, item2, sep = "_"),
+        pattern = paste(item1, item2),
+    )
+```
+
+Next step: find where these words appear together in the corpus, and concatenate them
+```{r eval=FALSE}
 #not working--to test, look for "like just" vs "likejust" in cleanparagraphs.
 for (i in 1:nrow(topprobs)){
   gsub(topprobs$concatenate[i], topprobs$concatenated[i],
@@ -78,6 +93,32 @@ for (i in 1:nrow(topprobs)){
   }
     )
 }
+## Note to Fiona: Having a for-loop within a function (as an argument)
+## will cause errors
+```
+
+```{r}
+## NEW
+cleanparagraphs <- cleanparagraphs %>%
+    mutate(
+        X = NULL,
+        ID = as.character(ID),
+        paragraphs = as.character(paragraphs)
+    )
+
+## Note to Fiona: you don't want to not do this for every row
+## of skipgram_probs. That is, there are probably some word pairs
+## that should be left uncombined.
+## Code below only does the first 10 rows
+## skipgram_probs has hundreds of thousands of rows so it would take
+## way too long to do all of them
+for (i in 1:10) {
+    cleanparagraphs$paragraphs <- str_replace_all(cleanparagraphs$paragraphs, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
+}
+
+## Proof that "like just" instances have been replaced with "like_just"
+cleanparagraphs$paragraphs[cleanparagraphs$paragraphs %>% str_detect("like just")]
+cleanparagraphs$paragraphs[cleanparagraphs$paragraphs %>% str_detect("like_just")]
 ```
 
 **What I want to do:**
