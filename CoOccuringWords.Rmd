@@ -33,48 +33,10 @@ tidy_skipgrams <- cleanparagraphs %>%
 skipgram_probs <- tidy_skipgrams %>%
     pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
     mutate(p = n / sum(n))
-
-head(skipgram_probs) #let's look at it 
 ```
-
-```{r eval=FALSE}
-#Not super useful to have skipgram probabilities for two of the same word, ex. going going, so let's just find the probabilities for the words that are different
-
-
-#compare the words
-item1list <- as.vector(skipgram_probs$item1)
-item2list <- as.vector(skipgram_probs$item2)
-
-item_comparison <- numeric(length = length(item1list))
-for (i in 1:length(item1list)){
-  item_comparison[i] <- strcmp(item1list[[i]], item2list[[i]])
-}
-
-#returns 1s for rows where item1 and item2 are identical, and 0 for rows where item1 and item 2 are different
-item_comparison <- item_comparison %>% as.data.frame()
-```
-
-```{r eval=FALSE}
-library(stringr)
-#get skipgram probabilities for just the words that are different from each other
-item_comparison_final <- as.data.frame(append(item_comparison, skipgram_probs)) %>% filter(. == 0)
-
-#get top 500 skipgram probabilities
-#Why 500/2 = 250 (words are shown in both orders)? Nobody knows!! Maybe make this better!!
-## Note to Fiona: item_comparison_final has not been subset yet, so head()
-## is only going to return the rows for which item1 and item2 are identical
-topprobs <- head(item_comparison_final, 500) 
-
-#make column with the words that go together, get a df with just concatenatable words + concatenated words
-topprobs <- topprobs %>% 
-  mutate(concatenate = paste(item1, item2)) %>% 
-  select(concatenate) %>% mutate(concatenated = str_replace_all(concatenate, " ", ""))
-```
-
-Note to Fiona: A more direct way to subset the `skipgram_probs` data frame to exclude the rows where `item1` and `item2` are the same is to use the `!=` (not equal) comparison operator within `dplyr::filter()`. It's probably better to concatenate the items with an underscore rather than joining them without a space (just for better readability and to be clear that they have been concatenated).
 
 ```{r}
-## NEW
+## Filters just the places where where item1 != item2 and concatenates these words
 skipgram_probs <- skipgram_probs %>%
     dplyr::filter(item1!=item2) %>%
     mutate(
@@ -83,20 +45,7 @@ skipgram_probs <- skipgram_probs %>%
     )
 ```
 
-Next step: find where these words appear together in the corpus, and concatenate them
-```{r eval=FALSE}
-#not working--to test, look for "like just" vs "likejust" in cleanparagraphs.
-for (i in 1:nrow(topprobs)){
-  gsub(topprobs$concatenate[i], topprobs$concatenated[i],
-       for(j in nrow(cleanparagraphs)){
-          cleanparagraphs$paragraphs[j]
-  }
-    )
-}
-## Note to Fiona: Having a for-loop within a function (as an argument)
-## will cause errors
-```
-
+Find where these words appear together in the corpus, and concatenate them
 ```{r}
 ## NEW
 cleanparagraphs <- cleanparagraphs %>%
@@ -106,12 +55,7 @@ cleanparagraphs <- cleanparagraphs %>%
         paragraphs = as.character(paragraphs)
     )
 
-## Note to Fiona: you don't want to not do this for every row
-## of skipgram_probs. That is, there are probably some word pairs
-## that should be left uncombined.
-## Code below only does the first 10 rows
-## skipgram_probs has hundreds of thousands of rows so it would take
-## way too long to do all of them
+#How many words to concatenate? Code below only does the first 10 rows. We shouldn't do all of them, but what should be the threshold?
 for (i in 1:10) {
     cleanparagraphs$paragraphs <- str_replace_all(cleanparagraphs$paragraphs, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
 }
@@ -121,41 +65,6 @@ cleanparagraphs$paragraphs[cleanparagraphs$paragraphs %>% str_detect("like just"
 cleanparagraphs$paragraphs[cleanparagraphs$paragraphs %>% str_detect("like_just")]
 ```
 
-**What I want to do:**
-Find "like just"  in row 1 of cleanparagraphs, replace with "likejust"
-Find "just like" in row 1, replace with "justlike"
-Find "don't know" in row 1, replace with "don'tknow"
-
-*In other words,*
-Find word from topprobs$concatenate[1] in cleanparagraphs$paragraphs[1], and replace with word from topprobs$concatenated[1]
-etc.
-
-*In manual code:*
-gsub(topprobs$concatenate[1], topprobs$concatenated[1], cleanparagraphs$paragraphs[1])
-gsub(topprobs$concatenate[2], topprobs$concatenated[2], cleanparagraphs$paragraphs[1])
-gsub(topprobs$concatenate[3], topprobs$concatenated[3], cleanparagraphs$paragraphs[1])
-
-OR
-
-str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenate[1], topprobs$concatenated[1])
-str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenate[2], topprobs$concatenated[2])
-str_replace_all(cleanparagraphs$paragraphs[1], topprobs$concatenated[3], topprobs$concatenated[3])
-
-*Non-manual code tries--currently one-sided*
-I'm able to look through one list, ex:
-paragraphstring <- "paragraph example here with the words like just"
-topprobslist <- c("like just", "just like", "don't know")
-
-Result: "paragraph example here with the words likejust"
-
-gsub(paste(topprobslist, collapse = '|'), '##NUMBER##', paragraphstring) yields Result
-mgsub(numlist, "##NUMBER##", mystring) also likely works, but need qdap and isn't working :( 
-
-BUT can't get the substitute to be the corresponding part of a second list ex. newprobslist <- c("likejust", "justlike", "don'tknow")
-
-Source: https://stackoverflow.com/questions/37183628/r-pass-a-vector-of-strings-to-replace-all-instances-within-a-string
-
-Other stackoverflow qs, ex https://stackoverflow.com/questions/41883436/remove-replace-specific-words-or-phrases-from-character-strings-r, do the same thing--can find any words within a list of words and know to replace those, but replace them all with the same thing. Not useful sadly :(
 
 Bibliography to do:
 https://juliasilge.com/blog/tidy-word-vectors/
