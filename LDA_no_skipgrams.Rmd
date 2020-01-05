@@ -1,0 +1,96 @@
+---
+title: "sdfdsfdsf"
+author: "Fiona Adams"
+date: "1/5/2020"
+output: html_document
+---
+
+```{r message=FALSE}
+require(readtext)
+library(dplyr)
+library(data.table)
+library(lattice)
+library(udpipe)
+library(stringr)
+require(tibble)
+library(stopwords)
+library(tidytext)
+library(widyr)
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
+```
+
+```{r}
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    strsplit("\\n+") %>%
+    as.data.frame()
+}
+
+changecolname <- function(interview) {
+  colnames(interview)[1] <- "paragraphs"
+  interview$paragraphs <- as.character(interview$paragraphs)
+  interview
+}
+
+allparagraphs <- function(interviewfolder){
+  interview_out <- rep(0, nrow(dat_word))
+  
+  for (i in 1:nrow(dat_word)) {
+    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
+    interview_out[[i]] <- cleandat
+  }
+  
+  paragraphs <- rbindlist(interview_out, fill=TRUE)
+  return(paragraphs) #this puts them all into one data table
+}
+
+new <- allparagraphs(dat_word)
+
+new <- new %>% 
+  rowid_to_column("ID") %>% #make ID column
+  mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
+  filter(grepl("as:", paragraphs)==FALSE, nchar>20) #take out Amy Sullivan's questions 
+```
+
+Clean dataframe by taking out unimportant words
+```{r}
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
+
+#test: show what this does
+new$paragraphs[[1]]
+no.stopwords(new$paragraphs[[1]])
+
+#replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+for(i in 1:nrow(new)) {
+  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
+}
+```
+
+LDA
+```{r}
+require(text2vec)
+tokens = new$paragraphs[1:1000] %>% 
+  tolower %>%
+  word_tokenizer
+
+it = itoken(tokens, ids = new$ID[1:1000], progressbar = FALSE)
+v = create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
+
+lda_model = LDA$new(n_topics = 10, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr = 
+  lda_model$fit_transform(x = dtm, n_iter = 1000, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = FALSE)
+```
+

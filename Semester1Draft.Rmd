@@ -10,14 +10,9 @@ header-includes: \usepackage{graphicx}
 
 ## Introduction
 
-This will be heavily dependent on the final product! 
+This will be heavily dependent on the final product, so I'm waiting to write an intro/lit review! 
 
-Some useful lit so far:
-• https://www.researchgate.net/publication/299552252_Statistical_Topic_Modeling_for_News_Articles
-• https://arxiv.org/pdf/1808.01175.pdf
-• https://towardsdatascience.com/thats-mental-using-lda-topic-modeling-to-investigate-the-discourse-on-mental-health-over-time-11da252259c3
-• https://towardsdatascience.com/light-on-math-machine-learning-intuitive-guide-to-latent-dirichlet-allocation-437c81220158
-• http://www.jmlr.org/papers/volume3/blei03a/blei03a.pdf
+Some useful lit/"lit" so far: https://www.researchgate.net/publication/299552252_Statistical_Topic_Modeling_for_News_Articles, https://arxiv.org/pdf/1808.01175.pdf, https://towardsdatascience.com/thats-mental-using-lda-topic-modeling-to-investigate-the-discourse-on-mental-health-over-time-11da252259c3, https://towardsdatascience.com/light-on-math-machine-learning-intuitive-guide-to-latent-dirichlet-allocation-437c81220158, http://www.jmlr.org/papers/volume3/blei03a/blei03a.pdf
 
 ## Dataset
 
@@ -30,83 +25,192 @@ Make ethnographic interview analysis easier! Not unsupervised necessarily, but n
 ## Tried
 
 **Noun/verb phrases:**
-
-• Split on sentence level
-• Get key noun/verb phrases for each sentence and make a new dataset with these phrases
-• Cluster noun/verb phrases together based on string distance
-
-Result: unintelligible clusters, heavy overlap
+Split the documents on the sentence level, then got key noun/verb phrases for each sentence and made a new dataset with these phrases. Then, clustered noun/verb phrases together based on string distance. Result: unintelligible clusters, heavy overlap
 
 **Document comparison:**
-
-• Cosine similarity & Euclidean distance between documents
-• http://text2vec.org/similarity.html
-
-Result: great for comparing and determining whether documents are similar, validating the usefulness of topic modeling. But, not useflu for final product.
+Calculated cosine similarity & Euclidean distance between documents. See http://text2vec.org/similarity.html. Result: great for comparing and determining whether documents are similar, validating the usefulness of topic modeling. But, not useful for final product.
 
 **More noun/verb phrase:**
-
-• Using same approach as final (split on paragraph level, same cleaning), take the top # (played around with this #, settled on 500 for computation reasons) noun/verb phrases from the corpus
-• Filter paragaphs so that each paragraph is consisted of just its top noun/verb phrases
-• Perform LDA on these newly filtered paragarphs
-
+Using same approach as final (split on paragraph level, same cleaning), I took the top # (played around with this #, settled on 500 for computation reasons) of noun/verb phrases from the corpus. Then, I filtered paragaphs so that each paragraph is consisted of just its top noun/verb phrases. Afterwards, I performed LDA on these newly filtered paragarphs.
 Result: clearly labelable clusters, but clusters didn't give unique results, so not very useful for historians
 
 **Different dataset**
+Repeated the above and final approach on a general dataset of Wikipedia articles, in line with methodology from https://arxiv.org/pdf/1808.01175.pdf. Hope was to compare clusters and see if it was easier to label given clusters from another dataset. But, this had a super long computation time. Result: Not useful--but may be worth approaching again
 
-• Repeated the above and final approach on a general dataset of Wikipedia articles, in line with methodology from https://arxiv.org/pdf/1808.01175.pdf. 
-• Hope was to compare clusters and see if it was easier to label given clusters from another dataset
-• Super long computation time, as expected
+## Cleaning the Dataset
 
-Result: Not useful--but may be worth approaching again
+For initial cleaning, I first split each interview into its respective paragraphs, then treated each paragraph as a separate "document" but label the paragraphs based on the document they originally came from (ex. "doc 9" can be mapped to doc 9 in the original dataset). Then, I removed paragraphs with <20 characters, meaning most of the questions Amy asks in the interview are filtered out, and any "yes," "no," etc. answers are gone as well. 
 
-## In final approach
+```{r echo=FALSE, message=FALSE}
+require(readtext)
+library(dplyr)
+library(data.table)
+library(lattice)
+library(stringr)
+require(tibble)
+library(stopwords)
+library(tidytext)
+library(widyr)
+require(quanteda)
+require(tm)
+library(ggplot2)
 
-See CleaningandLDA.Rmd for the work for the below.
 
-Cleaning:
+unclean_paragraphs <- read.csv("unclean_paragraphs.csv") 
+unclean_paragraphs <- unclean_paragraphs %>% mutate(paragraphs=as.character(paragraphs))
 
-• Split each interview into its respective paragraphs
-• Treat each paragraph as a separate "document" but label the paragraphs based on the document they originally came from (ex. doc 9--can be mapped to doc 9 in the original dataset) 
-• Remove paragraphs with <20 characters, meaning most of the questions Amy asks in the interview are filtered out, and any "yes," "no," etc. answers are gone as well
-• Take out stop words ex. "it," "be," etc. using stopwords()
+new <- read.csv("clean_paragraphs.csv")
+new <- new %>% mutate(paragraphs=as.character(paragraphs))
+```
 
-Modelling:
+Then, using R's stopwords package, I took out "stop words," which included "it," "be," etc. An example of this can be shown below, where the first paragraph includes stopwords and the second does not.
+```{r echo=FALSE}
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
 
-• Latent Dirichlet Allocation (LDA)
-• Assume the paragraphs have 10 topics
+#test: show what this does
+unclean_paragraphs$paragraphs[[1]]
+no.stopwords(unclean_paragraphs$paragraphs[[1]])
+
+#replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+for(i in 1:nrow(unclean_paragraphs)) {
+  unclean_paragraphs$paragraphs[[i]] <- no.stopwords(unclean_paragraphs$paragraphs[[i]])
+}
+```
+
+Then, I calculated skipgram probabilities to determine which words occurred together, to then concatenate them. For example, in this dataset, we expect the words "substance" and "abuse" to appear together, meaning their skipgram probability would be high and they would be concatenated into "substance_abuse" for easier clustering. Typically, word vectors are calculated using neural networks. The approach below, of finding words that occur together in the corpus of Minnesota Opioid Project interviews, uses only counting and linear algebra. This is great because it eliminates the need for pre-trained vectors in a deep learning approach, uses familiar techniques that are relatively easy to understand, and doesn't take too long computationally [@juliasilge]. More reasons to not use neural network approaches are here: [@multithreaded].
+
+**Skipgram probabilities:** how often we find each word near each other word.
+
+**How to get these probabilities:** Define a fixed-size moving window that centers around each word. What is the probability of seeing *word1* and *word2* in this window?
+
+**Defining the moving window size:** When this window is bigger, the process of counting skipgrams takes longer. Julia Silge, a well-known data scientist at Stack Overflow, used windows of 8 words, so I decided to start with this. Going forward, I'm looking to take some more sophisticated steps to find the best window to use.
+
+**Concatenate words with high co-occuring probabilities:** If probability of co-occuring is relatively high (in this case, I took the top 100 probabilities), then concatenate those words. This gave the best clusters, but hoping for a more unsupervised approach to finding the top skipgrams going forward, so will continue to hone this.
+
+Here is an example of concatenating words that occur together using the words "like_just" which occurred together a few times in our dataset.
+
+```{r echo=FALSE}
+## "like just" instances have been replaced with "like_just"
+new$paragraphs[new$paragraphs %>% str_detect("like_just")]
+```
+
+Future cleaning steps will likely include stemming (getting the base or root form of the word) and/or lemmatization (getting a different base form, or dictionary form of the word, the "lemma"). Stemming, for example, will transform "was" to "wa," while lemmatization will transform "was" to "be." Initial work with these methods led to some loss of meaning, but I am looking to revisit using different methods. I will also be looking into CountVectorizer: https://www.rdocumentation.org/packages/superml/versions/0.4.0/topics/CountVectorizer
+
+# Topic Modeling: Creating Clusters using Latent Dirichlet Allocation (LDA)
+
+LDA gives a probabilistic topic model, with tables of ‘words-versus-topics’: the probability or chance of selecting a particular part when sampling a particular topic (category) and ‘documents-versus-topics’: the chance of selecting a particular topic when sampling a particular document or composite. In this case, we are using 'documents-versus-topics,' or more accurately, 'paragraphs-versus-topics,' because we treat each paragraph as its own document. LDA allows for “fuzzy” memberships to topics rather than outright ones as in k-means, which is “hard-clustering.” This provides a more nuanced way topic modeling. However, LDA is hard to tune and hard to evaluate
+
+Haven't yet written out full a "methods" section for LDA, but will add here soon. Want to wait on finalizing cleaning methods such that LDA provides easy-to-understand clusters.
+
+```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
+require(text2vec)
+tokens = new$paragraphs[1:1000] %>% 
+  tolower %>%
+  word_tokenizer
+
+it = itoken(tokens, ids = new$ID[1:1000], progressbar = FALSE)
+v = create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
+
+lda_model = LDA$new(n_topics = 5, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr = 
+  lda_model$fit_transform(x = dtm, n_iter = 1000, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = FALSE)
+```
+
+You can see below that with 5 topics, only 3 really have documents within them. In future, I will likely create a function that chooses a number of topics n such that proportion of documents in each topic is roughly 100/n +/- an error bound. 
+```{r echo=FALSE, fig.align="center"}
+barplot(doc_topic_distr[1, ], xlab = "topic", 
+        ylab = "proportion", main="Proportion of Documents (Paragraphs) in each Topic", ylim = c(0, 1), 
+        names.arg = 1:ncol(doc_topic_distr))
+```
+
+```{r echo=FALSE, results="hide", message=FALSE}
+new_dtm = itoken(new$paragraphs[1000:2116], tolower, word_tokenizer, ids = new$ID[1000:2116]) %>% 
+  create_dtm(vectorizer, type = "dgTMatrix")
+new_doc_topic_distr = lda_model$transform(new_dtm)
+```
+
+```{r message=FALSE}
+library(LDAvis)
+lda_model$plot()
+```
+This code isn't showing once knitted, but for me brings up a webpage with an interactive LDA/PCA model on it. To get there, my link is http://127.0.0.1:4321/, but you may need to run this .Rmd file to get it up.
+
+#### Here is an alternate way of making an LDA model, without PCAs. (Needs Methods sec!) 
+```{r echo=FALSE, results=FALSE, warning=FALSE, message=FALSE}
+#Make simple corpus
+corpus <- Corpus(VectorSource(new$paragraphs)) 
+
+#Clean simple corpus
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords())
+corpus <- tm_map(corpus, stemDocument)
+corpus <- tm_map(corpus, stripWhitespace)
+
+#Turn into complex corpus
+corpus <- corpus(corpus)
+
+corpusdfm <- quanteda::dfm(corpus, verbose = FALSE)
+
+tidycorpus <- tidy(corpusdfm)
+
+dtm <- tidycorpus %>% cast_dtm(document, term, count)
+
+library(topicmodels)
+
+# set a seed so that the output of the model is predictable
+ap_lda <- LDA(dtm, k = 10, control = list(seed = 1234))
+
+ap_topics <- tidy(ap_lda, matrix = "beta")
+```
+
+```{r echo=FALSE}
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  top_n(7, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
+```
+
+Note that this is *not* a clustering on the full dataset as of yet (due to computation time concerns). Thus, these clusters may not be as useful as they would be on a full dataset of 50 interviews. Will be running the full dataset very soon! That said, these clusters aren't as useful as I wish they were in general. 
+
+Future modeling steps will likely include the following:
+• Re-run LDA where each "document" is a smaller phrase rather than a full paragraph
+
+• See https://www.sciencedirect.com/science/article/pii/S0020025518308028 for comparison of methods--LDA has some big limitations!
+
+• See if achieve better clusters using *Nonnegative Matrix Factorization*. See https://towardsdatascience.com/topic-modeling-for-the-new-york-times-news-dataset-1f643e15caac
+
+• See if achieve better clusters using *Stochastic Block Model*. See https://advances.sciencemag.org/content/4/7/eaaq1360
+
+• Determine whether worthwhile to attempt a *doc2vec* approach, using Python (a language I'm less familiar with). See https://arxiv.org/pdf/1808.01175.pdf and https://towardsdatascience.com/using-word2vec-to-analyze-news-headlines-and-predict-article-success-cdeda5f14751 and https://cs.stanford.edu/~quocle/paragraph_vector.pdf
 
 ## Next Steps
 
 **Will be in final:**
 
-*Almost there:*
-• Find and concatenate words that had relatively high probabilities of being together--these words are found, but need to be concatenated. See CoOccuringWords.Rmd--so close, yet so far!! Need some guidance on the very last part. Working with Leslie on this.
-• Then, re-run LDA
-
-*To do:*
 • Manually label each cluster based on its themes
+
 • Map the words from each cluster back to sentences in each document
-
-**Attempt along the way:**
-
-*Cleaning:*
-
-• Decided against stemming and lemmatization due to some loss of meaning, revisit using different methods
-• Also revisit CountVectorizer. See https://www.rdocumentation.org/packages/superml/versions/0.4.0/topics/CountVectorizer
-
-*LDA Adjustments:*
-
-• Re-run LDA where each "document" is a smaller phrase rather than a full paragraph
-
-*Try other clustering methods:*
-
-• See https://www.sciencedirect.com/science/article/pii/S0020025518308028 for comparison of methods--LDA has some big limitations!
-• See if achieve better clusters using *Nonnegative Matrix Factorization*. See https://towardsdatascience.com/topic-modeling-for-the-new-york-times-news-dataset-1f643e15caac
-• See if achieve better clusters using *Stochastic Block Model*. See https://advances.sciencemag.org/content/4/7/eaaq1360
-• Determine whether worthwhile to attempt a *doc2vec* approach, using Python (a language I'm less familiar with). See https://arxiv.org/pdf/1808.01175.pdf and https://towardsdatascience.com/using-word2vec-to-analyze-news-headlines-and-predict-article-success-cdeda5f14751 and https://cs.stanford.edu/~quocle/paragraph_vector.pdf
-
-*Labeling the clusters:*
 
 • Work on "auto-labelling" clusters using different dataset to train, ex. addiction medicine handbooks, or Wikipedia articles specifically about substance abuse
 

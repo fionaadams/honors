@@ -1,0 +1,217 @@
+---
+title: "LDA_with_skipgrams"
+author: "Fiona Adams"
+date: "1/5/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r message=FALSE}
+require(readtext)
+library(dplyr)
+library(data.table)
+library(lattice)
+library(udpipe)
+library(stringr)
+require(tibble)
+library(stopwords)
+library(tidytext)
+library(widyr)
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
+```
+
+```{r}
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    strsplit("\\n+") %>%
+    as.data.frame()
+}
+
+changecolname <- function(interview) {
+  colnames(interview)[1] <- "paragraphs"
+  interview$paragraphs <- as.character(interview$paragraphs)
+  interview
+}
+
+allparagraphs <- function(interviewfolder){
+  interview_out <- rep(0, nrow(dat_word))
+  
+  for (i in 1:nrow(dat_word)) {
+    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
+    interview_out[[i]] <- cleandat
+  }
+  
+  paragraphs <- rbindlist(interview_out, fill=TRUE)
+  return(paragraphs) #this puts them all into one data table
+}
+
+unclean_paragraphs <- allparagraphs(dat_word)
+
+unclean_paragraphs <- unclean_paragraphs %>% 
+  rowid_to_column("ID") %>% #make ID column
+  mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
+  filter(grepl("as:", paragraphs)==FALSE, nchar>20) #take out Amy Sullivan's questions 
+```
+
+```{r}
+write.csv(unclean_paragraphs, "unclean_paragraphs.csv")
+```
+
+Clean dataframe by taking out unimportant words
+```{r}
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
+
+#test: show what this does
+unclean_paragraphs$paragraphs[[1]]
+no.stopwords(unclean_paragraphs$paragraphs[[1]])
+
+#replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+for(i in 1:nrow(unclean_paragraphs)) {
+  unclean_paragraphs$paragraphs[[i]] <- no.stopwords(unclean_paragraphs$paragraphs[[i]])
+}
+```
+
+
+```{r}
+#Get skipgram probabilities
+tidy_skipgrams <- unclean_paragraphs %>%
+    unnest_tokens(ngram, paragraphs, token = "ngrams", n=8) %>% #sets sliding window of 8
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
+
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+```
+
+```{r}
+## Filters just the places where where item1 != item2 and concatenates these words
+skipgram_probs <- skipgram_probs %>%
+    dplyr::filter(item1!=item2) %>%
+    mutate(
+        concatenate = paste(item1, item2, sep = "_"),
+        pattern = paste(item1, item2),
+    )
+```
+
+```{r}
+## NEW
+new <- new %>%
+    mutate(
+        X = NULL,
+        ID = as.character(ID),
+        paragraphs = as.character(paragraphs)
+    )
+
+#How many words to concatenate? Code below only does the first 10 rows. We shouldn't do all of them, but what should be the threshold?
+for (i in 1:100) {
+    new$paragraphs <- str_replace_all(new$paragraphs, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
+}
+```
+
+```{r}
+write.csv(new, "clean_paragraphs.csv")
+```
+
+LDA
+```{r}
+require(text2vec)
+tokens = new$paragraphs[1:1000] %>% 
+  tolower %>%
+  word_tokenizer
+
+it = itoken(tokens, ids = new$ID[1:1000], progressbar = FALSE)
+v = create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
+
+lda_model = LDA$new(n_topics = 10, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr = 
+  lda_model$fit_transform(x = dtm, n_iter = 1000, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = FALSE)
+```
+
+Future work: choose number of topics n such that proportion of documents in each topic is roughly 100/n +/- an error bound tbd
+```{r}
+barplot(doc_topic_distr[1, ], xlab = "topic", 
+        ylab = "proportion", ylim = c(0, 1), 
+        names.arg = 1:ncol(doc_topic_distr))
+```
+
+```{r}
+new_dtm = itoken(new$paragraphs[1000:2116], tolower, word_tokenizer, ids = new$ID[1000:2116]) %>% 
+  create_dtm(vectorizer, type = "dgTMatrix")
+new_doc_topic_distr = lda_model$transform(new_dtm)
+```
+
+```{r}
+library(LDAvis)
+lda_model$plot()
+```
+Different way to LDA
+```{r}
+require(quanteda)
+require(tm)
+require(tidytext)
+#Make simple corpus
+corpus <- Corpus(VectorSource(new$paragraphs)) 
+
+#Clean simple corpus
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords())
+corpus <- tm_map(corpus, stemDocument)
+corpus <- tm_map(corpus, stripWhitespace)
+
+#Turn into complex corpus
+corpus <- corpus(corpus)
+```
+
+```{r}
+corpusdfm <- quanteda::dfm(corpus, verbose = FALSE)
+
+tidycorpus <- tidy(corpusdfm)
+
+dtm <- tidycorpus %>% cast_dtm(document, term, count)
+```
+
+```{r}
+library(topicmodels)
+
+# set a seed so that the output of the model is predictable
+ap_lda <- LDA(dtm, k = 10, control = list(seed = 1234))
+
+ap_topics <- tidy(ap_lda, matrix = "beta")
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  top_n(7, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
+```
+
