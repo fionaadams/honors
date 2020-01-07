@@ -1,0 +1,134 @@
+---
+title: "Cleaning"
+author: "Fiona Adams"
+date: "1/6/2020"
+output: html_document
+---
+```{r message=FALSE}
+require(readtext)
+library(dplyr)
+library(data.table)
+library(lattice)
+library(udpipe)
+library(stringr)
+require(tibble)
+library(stopwords)
+library(tidytext)
+library(widyr)
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
+```
+
+Separate by Paragraph
+```{r}
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    strsplit("\\n+") %>%
+    as.data.frame()
+}
+
+changecolname <- function(interview) {
+  colnames(interview)[1] <- "paragraphs"
+  interview$paragraphs <- as.character(interview$paragraphs)
+  interview
+}
+
+allparagraphs <- function(interviewfolder){
+  interview_out <- rep(0, nrow(dat_word))
+  
+  for (i in 1:nrow(dat_word)) {
+    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
+    interview_out[[i]] <- cleandat
+  }
+  
+  paragraphs <- rbindlist(interview_out, fill=TRUE)
+  return(paragraphs) #this puts them all into one data table
+}
+
+unclean_paragraphs <- allparagraphs(dat_word)
+
+unclean_paragraphs <- unclean_paragraphs %>% 
+  rowid_to_column("ID") %>% #make ID column
+  mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
+  filter(grepl("as:", paragraphs)==FALSE, nchar>20) #take out Amy Sullivan's questions 
+```
+
+Clean dataframe by taking out unimportant words
+```{r}
+new <- unclean_paragraphs
+
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
+
+#test: show what this does
+new$paragraphs[[1]]
+no.stopwords(new$paragraphs[[1]])
+
+#replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+for(i in 1:nrow(new)) {
+  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
+}
+```
+
+Clean dataframe by concatenating words that appear together relatively often
+```{r}
+#Get skipgram probabilities
+tidy_skipgrams <- unclean_paragraphs %>%
+    unnest_tokens(ngram, paragraphs, token = "ngrams", n=8) %>% #sets sliding window of 8
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
+
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+```
+
+```{r}
+## Filters just the places where where item1 != item2 and concatenates these words
+skipgram_probs <- skipgram_probs %>%
+    dplyr::filter(item1!=item2) %>%
+    mutate(
+        concatenate = paste(item1, item2, sep = "_"),
+        pattern = paste(item1, item2),
+    )
+```
+
+```{r}
+new <- new %>%
+    mutate(
+        X = NULL,
+        ID = as.character(ID),
+        paragraphs = as.character(paragraphs)
+    )
+
+#How many words to concatenate? Code below only does the first 100 rows. We shouldn't do all of them, but what should be the threshold?
+for (i in 1:100) {
+    new$paragraphs <- str_replace_all(new$paragraphs, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
+}
+```
+
+Lemmatization
+```{r}
+#https://cran.r-project.org/web/packages/hunspell/vignettes/intro.html
+#chose hunspell because lexicon package turned "born" to "bear" so oof!
+#could try TreeTagger program, although installation is tricky and may not be worth it
+lemmatize <- function(df){
+  lemma_dictionary <- make_lemma_dictionary(df, engine = "hunspell")
+  lemmatize_strings(df, dictionary=lemma_dictionary)
+}
+
+#test: show what this does
+new$paragraphs[1]
+lemmatize(new$paragraphs[1])
+
+for(i in 1:nrow(new)) {
+  new$paragraphs[[i]] <- lemmatize(new$paragraphs[[i]])
+}
+```
