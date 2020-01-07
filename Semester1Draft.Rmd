@@ -20,7 +20,7 @@ This dataset is from the Minnesota Opioid Project, a collection of 50 ethnograph
 
 ## Goal
 
-Make ethnographic interview analysis easier! Not unsupervised necessarily, but not *mind-numbingly tedious* as Amy describes it.
+Make ethnographic interview analysis easier! Not unsupervised necessarily, but doesn't take forever
 
 ## Tried
 

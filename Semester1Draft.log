@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  5 JAN 2020 15:35
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  5 JAN 2020 21:38
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -779,11 +779,11 @@ Package rerunfilecheck Info: File `Semester1Draft.out' has not changed.
 (rerunfilecheck)             Checksum: D902CCC9FDAAA3E997677B760D634400;1316.
  ) 
 Here is how much of TeX's memory you used:
- 12963 strings out of 492616
- 190785 string characters out of 6129482
+ 12961 strings out of 492616
+ 190763 string characters out of 6129482
  313348 words of memory out of 5000000
  16600 multiletter control sequences out of 15000+600000
- 50981 words of font info for 82 fonts, out of 8000000 for 9000
+ 50851 words of font info for 81 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  35i,9n,38p,822b,368s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2019/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}{/usr/local
@@ -795,7 +795,7 @@ m/lmr17.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmri10.pf
 b></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmri12.pfb></usr/lo
 cal/texlive/2019/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texliv
 e/2019/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on Semester1Draft.pdf (6 pages, 228174 bytes).
+Output written on Semester1Draft.pdf (6 pages, 227011 bytes).
 PDF statistics:
  160 PDF objects out of 1000 (max. 8388607)
  136 compressed objects within 2 object streams

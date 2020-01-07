@@ -63,6 +63,8 @@ write.csv(unclean_paragraphs, "unclean_paragraphs.csv")
 
 Clean dataframe by taking out unimportant words
 ```{r}
+new <- unclean_paragraphs
+
 no.stopwords <- function(df){
   '%nin%' <- Negate('%in%')
   wordlist <- unlist(strsplit(df, " "))
@@ -71,12 +73,12 @@ no.stopwords <- function(df){
 }
 
 #test: show what this does
-unclean_paragraphs$paragraphs[[1]]
-no.stopwords(unclean_paragraphs$paragraphs[[1]])
+new$paragraphs[[1]]
+no.stopwords(new$paragraphs[[1]])
 
 #replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
-for(i in 1:nrow(unclean_paragraphs)) {
-  unclean_paragraphs$paragraphs[[i]] <- no.stopwords(unclean_paragraphs$paragraphs[[i]])
+for(i in 1:nrow(new)) {
+  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
 }
 ```
 
