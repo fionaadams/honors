@@ -132,3 +132,4 @@ for(i in 1:nrow(new)) {
   new$paragraphs[[i]] <- lemmatize(new$paragraphs[[i]])
 }
 ```
+

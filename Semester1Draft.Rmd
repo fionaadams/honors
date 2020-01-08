@@ -8,6 +8,12 @@ output:
 header-includes: \usepackage{graphicx}
 ---
 
+To do:
+• #1: sentence-level LDA, >10 topics, start with 20
+• Refine the skipgrams step to not use the top 100, but *somehow* find the most meaningful words to join
+• create clusters that are name-able
+• for every sentence, what clusters is it in
+
 ## Introduction
 
 This will be heavily dependent on the final product, so I'm waiting to write an intro/lit review! 
@@ -99,7 +105,7 @@ Here is an example of concatenating words that occur together using the words "l
 new$paragraphs[new$paragraphs %>% str_detect("like_just")]
 ```
 
-Future cleaning steps will likely include stemming (getting the base or root form of the word) and/or lemmatization (getting a different base form, or dictionary form of the word, the "lemma"). Stemming, for example, will transform "was" to "wa," while lemmatization will transform "was" to "be." Initial work with these methods led to some loss of meaning, but I am looking to revisit using different methods. I will also be looking into CountVectorizer: https://www.rdocumentation.org/packages/superml/versions/0.4.0/topics/CountVectorizer
+Future cleaning steps will likely include stemming (getting the base or root form of the word) and/or lemmatization (getting a different base form, or dictionary form of the word, the "lemma"). Stemming, for example, will transform "was" to "wa," while lemmatization will transform "was" to "be." Initial work with these methods led to some loss of meaning, but I am looking to revisit using different methods.
 
 # Topic Modeling: Creating Clusters using Latent Dirichlet Allocation (LDA)
 
