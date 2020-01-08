@@ -25,7 +25,10 @@ Separate by Paragraph
 cleaninterview <- function(interview) {
   interview %>% 
     tolower() %>%
-    strsplit("\\n+") %>%
+ #   strsplit("\\n+") %>% for splitting on paragraph level
+    str_replace_all("ms. ", "miss") %>% #take out when splitting on paragraph level
+    str_replace_all("st. ", "saint") %>% #take out when splitting on paragraph level
+    str_split("\\. | \\? | \\! ") %>% #take out when splitting on paragraph level
     as.data.frame()
 }
 
@@ -49,10 +52,15 @@ allparagraphs <- function(interviewfolder){
 
 unclean_paragraphs <- allparagraphs(dat_word)
 
+#for some reason, there are "\n"s in the dataset--replace them with spaces.
+unclean_paragraphs$paragraphs <- str_replace_all(unclean_paragraphs$paragraphs, "\n", " ")
+
 unclean_paragraphs <- unclean_paragraphs %>% 
   rowid_to_column("ID") %>% #make ID column
   mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
-  filter(grepl("as:", paragraphs)==FALSE, nchar>20) #take out Amy Sullivan's questions 
+  filter(nchar>5) #takes out short answers with little meaning, ex. "Yes" 
+
+# filter(grepl("as:", paragraphs)==FALSE) #this code takes out Amy Sullivan's questions--this takes forever when splitting on the sentence level!! Took out, but may put back in
 ```
 
 Clean dataframe by taking out unimportant words
@@ -67,14 +75,36 @@ no.stopwords <- function(df){
 }
 
 #test: show what this does
-new$paragraphs[[1]]
-no.stopwords(new$paragraphs[[1]])
+new$paragraphs[2]
+no.stopwords(new$paragraphs[2])
 
 #replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+
+#HELP!!
+#this works when done on a paragraph level (2166 rows), but for some reason can't handle the 14,000+ of the sentence-level dataset
+#It works, but only for a certain amount of rows--see example below
+#Why is this happening? How to fix?
 for(i in 1:nrow(new)) {
-  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
+  new$paragraphs[i] <- no.stopwords(new$paragraphs[i])
 }
+
 ```
+
+Look how the for loop works for the beginning of the dataset, but not for later parts of the dataset
+```{r}
+unclean_paragraphs$paragraphs[19]
+new$paragraphs[19] #it works!
+
+#BUT
+
+unclean_paragraphs$paragraphs[1000]
+new$paragraphs[1000] #it doesn't work!!
+```
+
+```{r}
+newtest <- new %>% mutate(nostopwords = no.stopwords(paragraphs))
+```
+
 
 Clean dataframe by concatenating words that appear together relatively often
 ```{r}
