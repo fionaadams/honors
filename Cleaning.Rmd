@@ -15,6 +15,7 @@ require(tibble)
 library(stopwords)
 library(tidytext)
 library(widyr)
+require(textstem)
 
 dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
 dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
@@ -58,12 +59,15 @@ unclean_paragraphs$paragraphs <- str_replace_all(unclean_paragraphs$paragraphs, 
 unclean_paragraphs <- unclean_paragraphs %>% 
   rowid_to_column("ID") %>% #make ID column
   mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
-  filter(nchar>5) #takes out short answers with little meaning, ex. "Yes" 
+  filter(nchar>35) #need this, because it 1) takes out short answers with little meaning, ex. "Yes" and 2) takes out answers that are *just* stopwords. May lose some meaning here, but guessing not a lot--can revisit later if need be.
 
 # filter(grepl("as:", paragraphs)==FALSE) #this code takes out Amy Sullivan's questions--this takes forever when splitting on the sentence level!! Took out, but may put back in
 ```
 
+
 Clean dataframe by taking out unimportant words
+
+Other stopwords to take out: most common words in English lexicon, words with less than 3 characters (maybe words with less than 4?), delete.stop.words stylo package, stop_words tidytext package, stopwords tm package, remove numbers and punctuation, 
 ```{r}
 new <- unclean_paragraphs
 
@@ -74,37 +78,16 @@ no.stopwords <- function(df){
   str_c(without.stopwords,collapse=' ')  
 }
 
-#test: show what this does
-new$paragraphs[2]
-no.stopwords(new$paragraphs[2])
-
 #replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
-
-#HELP!!
-#this works when done on a paragraph level (2166 rows), but for some reason can't handle the 14,000+ of the sentence-level dataset
-#It works, but only for a certain amount of rows--see example below
-#Why is this happening? How to fix?
 for(i in 1:nrow(new)) {
-  new$paragraphs[i] <- no.stopwords(new$paragraphs[i])
+  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
 }
 
+#test: show what this does
+unclean_paragraphs$paragraphs[2]
+new$paragraphs[2]
+
 ```
-
-Look how the for loop works for the beginning of the dataset, but not for later parts of the dataset
-```{r}
-unclean_paragraphs$paragraphs[19]
-new$paragraphs[19] #it works!
-
-#BUT
-
-unclean_paragraphs$paragraphs[1000]
-new$paragraphs[1000] #it doesn't work!!
-```
-
-```{r}
-newtest <- new %>% mutate(nostopwords = no.stopwords(paragraphs))
-```
-
 
 Clean dataframe by concatenating words that appear together relatively often
 ```{r}
@@ -149,17 +132,68 @@ Lemmatization
 #https://cran.r-project.org/web/packages/hunspell/vignettes/intro.html
 #chose hunspell because lexicon package turned "born" to "bear" so oof!
 #could try TreeTagger program, although installation is tricky and may not be worth it
+# 
 lemmatize <- function(df){
   lemma_dictionary <- make_lemma_dictionary(df, engine = "hunspell")
   lemmatize_strings(df, dictionary=lemma_dictionary)
 }
 
 #test: show what this does
-new$paragraphs[1]
-lemmatize(new$paragraphs[1])
+new$paragraphs[9]
+lemmatize(new$paragraphs[9])
+
+# for(i in 1:nrow(new)) {
+#   new$paragraphs[[i]] <- lemmatize(new$paragraphs[[i]])
+# }
+
+#yikes!!! does NOT give good results. Get rid of this mess.
+```
+
+#filter out words that are just one or two characters
+```{r}
+new$paragraphs[[9]]
+library(stringr)
 
 for(i in 1:nrow(new)) {
-  new$paragraphs[[i]] <- lemmatize(new$paragraphs[[i]])
+  new$paragraphs[[i]] <- 
+paste(str_extract_all(new$paragraphs, '\\w{3,}')[[i]], collapse=' ')
 }
 ```
 
+
+
+```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
+require(text2vec)
+tokens = new$paragraphs[1:1000] %>% 
+  tolower %>%
+  word_tokenizer
+
+it = itoken(tokens, ids = new$ID[1:1000], progressbar = FALSE)
+v = create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
+
+lda_model = LDA$new(n_topics = 20, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr = 
+  lda_model$fit_transform(x = dtm, n_iter = 1000, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = FALSE)
+```
+
+```{r echo=FALSE, fig.align="center"}
+barplot(doc_topic_distr[1, ], xlab = "topic", 
+        ylab = "proportion", main="Proportion of Documents (Paragraphs) in each Topic", ylim = c(0, 1), 
+        names.arg = 1:ncol(doc_topic_distr))
+```
+
+```{r echo=FALSE, results="hide", message=FALSE}
+new_dtm = itoken(new$paragraphs[1000:2116], tolower, word_tokenizer, ids = new$ID[1000:2116]) %>% 
+  create_dtm(vectorizer, type = "dgTMatrix")
+new_doc_topic_distr = lda_model$transform(new_dtm)
+```
+
+```{r message=FALSE}
+library(LDAvis)
+lda_model$plot()
+```
