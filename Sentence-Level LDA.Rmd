@@ -1,9 +1,10 @@
 ---
-title: "Paragraph-Level LDA"
+title: "Sentence-Level LDA"
 author: "Fiona Adams"
-date: "1/6/2020"
+date: "1/10/2020"
 output: html_document
 ---
+
 ```{r message=FALSE}
 require(readtext)
 library(dplyr)
@@ -21,22 +22,24 @@ dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*
 dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
 ```
 
-Separate by Paragraph
+Separate by Sentence
 ```{r}
 cleaninterview <- function(interview) {
   interview %>% 
     tolower() %>%
-    strsplit("\\n+") %>%
+    str_replace_all("ms. ", "miss") %>%
+    str_replace_all("st. ", "saint") %>%
+    str_split("\\. | \\? | \\! ") %>%
     as.data.frame()
 }
 
 changecolname <- function(interview) {
-  colnames(interview)[1] <- "paragraphs"
-  interview$paragraphs <- as.character(interview$paragraphs)
+  colnames(interview)[1] <- "sentences"
+  interview$sentences <- as.character(interview$sentences)
   interview
 }
 
-allparagraphs <- function(interviewfolder){
+allsentences <- function(interviewfolder){
   interview_out <- rep(0, nrow(dat_word))
   
   for (i in 1:nrow(dat_word)) {
@@ -44,23 +47,29 @@ allparagraphs <- function(interviewfolder){
     interview_out[[i]] <- cleandat
   }
   
-  paragraphs <- rbindlist(interview_out, fill=TRUE)
-  return(paragraphs) #this puts them all into one data table
+  sentences <- rbindlist(interview_out, fill=TRUE)
+  return(sentences) #this puts them all into one data table
 }
 
-unclean_paragraphs <- allparagraphs(dat_word)
+unclean_sentences <- allsentences(dat_word)
 
-unclean_paragraphs <- unclean_paragraphs %>% 
+#for some reason, there are "\n"s in the dataset--replace them with spaces.
+unclean_sentences$sentences <- str_replace_all(unclean_sentences$sentences, "\n", " ")
+
+unclean_sentences <- unclean_sentences %>% 
   rowid_to_column("ID") %>% #make ID column
-  mutate(ID = paste("doc", ID), paragraphs=as.character(paragraphs), nchar = nchar(paragraphs)) %>%
-  filter(grepl("as:", paragraphs)==FALSE, nchar>20) #take out Amy Sullivan's questions 
+  mutate(ID = paste("doc", ID), sentences=as.character(sentences), nchar = nchar(sentences)) %>%
+  filter(nchar>35) #need this, because it 1) takes out short answers with little meaning, ex. "Yes" and 2) takes out answers that are *just* stopwords. May lose some meaning here, but guessing not a lot--can revisit later if need be.
+
+# filter(grepl("as:", sentences)==FALSE) #this code takes out Amy Sullivan's questions--this takes forever when splitting on the sentence level!! Took out, but may put back in
 ```
+
 
 Clean dataframe by taking out unimportant words
 
 Other stopwords to take out: most common words in English lexicon, words with less than 3 characters (maybe words with less than 4?), delete.stop.words stylo package, stop_words tidytext package, stopwords tm package, remove numbers and punctuation, 
 ```{r}
-new <- unclean_paragraphs
+new <- unclean_sentences
 
 no.stopwords <- function(df){
   '%nin%' <- Negate('%in%')
@@ -69,22 +78,22 @@ no.stopwords <- function(df){
   str_c(without.stopwords,collapse=' ')  
 }
 
-#replace new$paragraphs[[i]] with no.stopwords(new$paragraphs[[i]])
+#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
 for(i in 1:nrow(new)) {
-  new$paragraphs[[i]] <- no.stopwords(new$paragraphs[[i]])
+  new$sentences[[i]] <- no.stopwords(new$sentences[[i]])
 }
 
 #test: show what this does
-unclean_paragraphs$paragraphs[2]
-new$paragraphs[2]
+unclean_sentences$sentences[2]
+new$sentences[2]
 
 ```
 
 Clean dataframe by concatenating words that appear together relatively often
 ```{r}
 #Get skipgram probabilities
-tidy_skipgrams <- unclean_paragraphs %>%
-    unnest_tokens(ngram, paragraphs, token = "ngrams", n=8) %>% #sets sliding window of 8
+tidy_skipgrams <- unclean_sentences %>%
+    unnest_tokens(ngram, sentences, token = "ngrams", n=8) %>% #sets sliding window of 8
     mutate(skipgramID = row_number()) %>% #set row number as the ID
     unnest_tokens(word, ngram)
 
@@ -109,12 +118,12 @@ new <- new %>%
     mutate(
         X = NULL,
         ID = as.character(ID),
-        paragraphs = as.character(paragraphs)
+        sentences = as.character(sentences)
     )
 
 #How many words to concatenate? Code below only does the first 100 rows. We shouldn't do all of them, but what should be the threshold?
 for (i in 1:100) {
-    new$paragraphs <- str_replace_all(new$paragraphs, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
+    new$sentences <- str_replace_all(new$sentences, skipgram_probs$pattern[i], skipgram_probs$concatenate[i])
 }
 ```
 
@@ -130,11 +139,11 @@ lemmatize <- function(df){
 }
 
 #test: show what this does
-new$paragraphs[9]
-lemmatize(new$paragraphs[9])
+new$sentences[9]
+lemmatize(new$sentences[9])
 
 # for(i in 1:nrow(new)) {
-#   new$paragraphs[[i]] <- lemmatize(new$paragraphs[[i]])
+#   new$sentences[[i]] <- lemmatize(new$sentences[[i]])
 # }
 
 #yikes!!! does NOT give good results. Get rid of this mess.
@@ -142,18 +151,18 @@ lemmatize(new$paragraphs[9])
 
 #filter out words that are just one or two characters
 ```{r}
-new$paragraphs[[9]]
+new$sentences[[9]]
 library(stringr)
 
 for(i in 1:nrow(new)) {
-  new$paragraphs[[i]] <- 
-paste(str_extract_all(new$paragraphs, '\\w{3,}')[[i]], collapse=' ')
+  new$sentences[[i]] <- 
+paste(str_extract_all(new$sentences, '\\w{3,}')[[i]], collapse=' ')
 }
 ```
 
 ```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
 require(text2vec)
-tokens = new$paragraphs[1:1000] %>% 
+tokens = new$sentences[1:1000] %>% 
   tolower %>%
   word_tokenizer
 
@@ -172,12 +181,12 @@ doc_topic_distr =
 
 ```{r echo=FALSE, fig.align="center"}
 barplot(doc_topic_distr[1, ], xlab = "topic", 
-        ylab = "proportion", main="Proportion of Documents (Paragraphs) in each Topic", ylim = c(0, 1), 
+        ylab = "proportion", main="Proportion of Documents (Sentences) in each Topic", ylim = c(0, 1), 
         names.arg = 1:ncol(doc_topic_distr))
 ```
 
 ```{r echo=FALSE, results="hide", message=FALSE}
-new_dtm = itoken(new$paragraphs[1000:2116], tolower, word_tokenizer, ids = new$ID[1000:2116]) %>% 
+new_dtm = itoken(new$sentences[1000:2116], tolower, word_tokenizer, ids = new$ID[1000:2116]) %>% 
   create_dtm(vectorizer, type = "dgTMatrix")
 new_doc_topic_distr = lda_model$transform(new_dtm)
 ```
