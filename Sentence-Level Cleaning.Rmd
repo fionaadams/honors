@@ -1,0 +1,173 @@
+---
+title: 'Cleaning: Sentence-Level'
+author: "Fiona Adams"
+date: "1/16/2020"
+output: html_document
+---
+
+```{r message=FALSE}
+require(readtext)
+library(dplyr)
+library(data.table)
+library(lattice)
+library(udpipe)
+library(stringr)
+require(tibble)
+library(stopwords)
+library(tidytext)
+library(widyr)
+require(textstem)
+
+dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
+```
+
+Separate by Sentence
+```{r}
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    str_replace_all("ms. ", "miss") %>%
+    str_replace_all("st. ", "saint") %>%
+    str_split("\\. | \\? | \\! ") %>%
+    as.data.frame()
+}
+
+changecolname <- function(interview) {
+  colnames(interview)[1] <- "sentences"
+  interview$sentences <- as.character(interview$sentences)
+  interview
+}
+
+allsentences <- function(interviewfolder){
+  interview_out <- rep(0, nrow(dat_word))
+  
+  for (i in 1:nrow(dat_word)) {
+    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
+    interview_out[[i]] <- cleandat
+  }
+  
+  sentences <- rbindlist(interview_out, fill=TRUE)
+  return(sentences) #this puts them all into one data table
+}
+
+unclean_sentences <- allsentences(dat_word)
+
+#for some reason, there are "\n"s in the dataset--replace them with spaces.
+unclean_sentences$sentences <- str_replace_all(unclean_sentences$sentences, "\n", " ")
+
+unclean_sentences <- unclean_sentences %>% 
+  rowid_to_column("ID") %>% #make ID column
+  mutate(ID = paste("doc", ID), sentences=as.character(sentences), nchar = nchar(sentences)) %>%
+  filter(nchar>35) #need this, because it 1) takes out short answers with little meaning, ex. "Yes" and 2) takes out answers that are *just* stopwords. May lose some meaning here, but guessing not a lot--can revisit later if need be.
+
+# filter(grepl("as:", sentences)==FALSE) #this code takes out Amy Sullivan's questions--this takes forever when splitting on the sentence level!! Took out, but may put back in
+```
+
+Clean dataframe by taking out unimportant words
+
+Other stopwords to take out: most common words in English lexicon, words with less than 3 characters (maybe words with less than 4?), delete.stop.words stylo package, stop_words tidytext package, stopwords tm package, remove numbers and punctuation, 
+```{r}
+new <- unclean_sentences
+
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
+
+#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
+for(i in 1:nrow(new)) {
+  new$sentences[[i]] <- no.stopwords(new$sentences[[i]])
+}
+
+#test: show what this does
+unclean_sentences$sentences[2]
+new$sentences[2]
+```
+
+Filter out words that are just one or two characters
+```{r}
+library(stringr)
+
+for(i in 1:nrow(new)) {
+  new$sentences[[i]] <-
+paste(str_extract_all(new$sentences, '\\w{3,}')[[i]], collapse=' ')
+}
+```
+
+Clean dataframe by concatenating words that appear together relatively often
+
+In the code below, the window size is 1, therefore, we will be predicting the words at context location (t-1) and (t+1), so the words that appear before and after a given word.
+```{r}
+#Get skipgram probabilities
+tidy_skipgrams <- new %>%
+    unnest_tokens(ngram, sentences, token = "ngrams", n=2) %>% #sets sliding window of 2
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
+
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+
+#find probability of each word occurring in this corpus
+unigram_probs <- new %>%
+    unnest_tokens(word, sentences) %>%
+    count(word, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+
+#normalize it: how often 
+normalized_prob <- skipgram_probs %>%
+    filter(n > 20) %>%
+    rename(word1 = item1, word2 = item2) %>%
+    left_join(unigram_probs %>%
+                  select(word1 = word, p1 = p),
+              by = "word1") %>%
+    left_join(unigram_probs %>%
+                  select(word2 = word, p2 = p),
+              by = "word2") %>%
+    mutate(p_together = p / p1 / p2)
+```
+
+What are the words most associated with treatment in this dataset? 
+```{r}
+normalized_prob %>%
+    filter(word1 == "treatment") %>%
+    arrange(-p_together)
+```
+
+```{r}
+## Filters just the places where where item1 != item2 and concatenates these words
+normalized_prob <- normalized_prob %>%
+    dplyr::filter(word1!=word2) %>%
+    mutate(
+        concatenate = paste(word1, word2, sep = "_"),
+        pattern = paste(word1, word2),
+    )
+```
+
+```{r}
+new <- new %>%
+    mutate(
+        X = NULL,
+        ID = as.character(ID),
+        sentences = as.character(sentences)
+    )
+
+#How many words to concatenate? Code below only does the first 100 rows. We shouldn't do all of them, but what should be the threshold?
+for (i in 1:length(normalized_prob$pattern)) {
+    new$sentences <- str_replace_all(new$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
+}
+```
+
+```{r}
+#this only concatenates them if they appear next to each other, because it looks for the pattern--so does a larger window affect this? try some things out and see! Do we get a different new$sentences[9] with different window lengths? Why?
+new$sentences[[9]]
+```
+
+```{r}
+write.csv(new, "sentence_level_clean.csv")
+```
+
