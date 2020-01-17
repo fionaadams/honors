@@ -19,6 +19,9 @@ new <- new %>%
 
 ```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
 require(text2vec)
+
+set.seed(397)
+
 tokenlen = (length(new$sentences)/3) * 2
 
 tokens = new$sentences[1:tokenlen] %>% 
