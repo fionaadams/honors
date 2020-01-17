@@ -87,13 +87,13 @@ unclean_sentences$sentences[2]
 new$sentences[2]
 ```
 
-Filter out words that are just one or two characters
+Filter out words that are just one, two, or three characters
 ```{r}
 library(stringr)
 
 for(i in 1:nrow(new)) {
   new$sentences[[i]] <-
-paste(str_extract_all(new$sentences, '\\w{3,}')[[i]], collapse=' ')
+paste(str_extract_all(new$sentences, '\\w{4,}')[[i]], collapse=' ')
 }
 ```
 
