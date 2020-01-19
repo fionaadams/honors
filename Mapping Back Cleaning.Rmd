@@ -68,12 +68,79 @@ See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "wor
 
 ```{r}
 words_in_clusters <- read.csv("words_in_clusters.csv")
+words_in_clusters <- words_in_clusters %>% mutate_all(as.character)
+new <- read.csv("sentence_level_clean.csv", header = TRUE)
+new <- new %>%
+    mutate(
+        X = NULL,
+        ID = as.character(ID),
+        sentences = as.character(sentences)
+    )
 ```
 
+```{r}
+listofwords <- words_in_clusters[,2]
+listofwords
 
+new$sentences[1]
+```
 
+```{r}
+detection <- str_detect(new$sentences[1], listofwords, negate = FALSE) %>% as.data.frame() %>% mutate_all(as.character)
+detection
+```
 
+```{r}
+suppressWarnings(str_detect(detection, "TRUE"))
+```
 
+Goal:
+-For each row in words_in_clusters, check if the top 20-30 words of each cluster (column) are in each row of new$sentences
+-Then, make a new column named for the cluster (column) they are from, with a TRUE if that sentence (document) includes a word from the given cluster (column)
+```{r}
+#This checks the sentences to see if cluster 1 is in there
+check.cluster1 <- function(df){
+  listofwords <- words_in_clusters[,2]
+  detection <- str_detect(df, listofwords, negate = FALSE) %>% 
+    as.data.frame() %>% 
+    mutate_all(as.character)
+  suppressWarnings(str_detect(detection, "TRUE"))
+}
+
+check.cluster1(new$sentences[1])
+
+#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
+for(i in 1:nrow(new)) {
+  new$V1[[i]] <- check.cluster1(new$sentences[[i]])
+}
+```
+
+This takes a real long time...even for just the top 3 clusters. What to do?
+```{r}
+#This checks the sentences to see if a given cluster is in there
+check.cluster.i <- function(df, i){
+  listofwords <- words_in_clusters[,i+1]
+  detection <- str_detect(df, listofwords, negate = FALSE) %>% 
+    as.data.frame() %>% 
+    mutate_all(as.character)
+  suppressWarnings(str_detect(detection, "TRUE"))
+}
+
+for(i in 1:nrow(new)) {
+  new$V1[[i]] <- check.cluster.i(new$sentences[[i]], 1)
+  new$V2[[i]] <- check.cluster.i(new$sentences[[i]], 2)
+  new$V3[[i]] <- check.cluster.i(new$sentences[[i]], 3)
+}
+```
+
+Make a new column indicating which clusters the sentence is part of (if any), ex. V1, V2
+
+Is there a better way to do this?? This does V1, V2, V3 but seems like bad coding
+```{r}
+new <- new %>% 
+  mutate(V1 = ifelse(V1 == TRUE, "V1", ""), V2= ifelse(V2 == TRUE, "V2", ""), V3 = ifelse(V3 == TRUE, "V3", "")) %>%
+  mutate(clusters = paste(V1, V2, V3, sep=" "))
+```
 
 
 
