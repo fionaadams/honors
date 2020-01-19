@@ -66,6 +66,9 @@ treatment
 
 See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "word math" ex. king - man + woman = queen.
 
+```{r}
+words_in_clusters <- read.csv("words_in_clusters.csv")
+```
 
 
 

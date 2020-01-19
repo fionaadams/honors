@@ -8,6 +8,7 @@ output: html_document
 Goal for this document: 
 -take clean dataset
 -perform LDA to get clusters of words that go together
+-get the words from each cluster
 
 ```{r}
 new <- read.csv("sentence_level_clean.csv", header = TRUE)
@@ -61,3 +62,12 @@ Info on sharing this visualization: https://github.com/cpsievert/LDAvis
 library(LDAvis)
 lda_model$plot()
 ```
+
+Get words from first cluster
+```{r}
+top_words <- lda_model$get_top_words(n = 30, lambda = 0.3)
+top_words[,1]
+```
+
+
+
