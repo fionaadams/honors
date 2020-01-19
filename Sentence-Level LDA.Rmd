@@ -5,6 +5,10 @@ date: "1/10/2020"
 output: html_document
 ---
 
+Goal for this document: 
+-take clean dataset
+-perform LDA to get clusters of words that go together
+
 ```{r}
 new <- read.csv("sentence_level_clean.csv", header = TRUE)
 
@@ -15,7 +19,6 @@ new <- new %>%
         sentences = as.character(sentences)
     )
 ```
-
 
 ```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
 require(text2vec)
@@ -52,7 +55,6 @@ new_dtm = itoken(new$sentences[tokenlen:length(new$sentences)], tolower, word_to
   create_dtm(vectorizer, type = "dgTMatrix")
 new_doc_topic_distr = lda_model$transform(new_dtm)
 ```
-
 
 Info on sharing this visualization: https://github.com/cpsievert/LDAvis
 ```{r message=FALSE}

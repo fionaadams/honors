@@ -5,134 +5,76 @@ date: "1/16/2020"
 output: html_document
 ---
 
-```{r message=FALSE}
-require(readtext)
-library(dplyr)
-library(data.table)
-library(lattice)
-library(udpipe)
-library(stringr)
-require(tibble)
-library(stopwords)
-library(tidytext)
+Goal for this document: 
+-take top words for each cluster
+-find the synonyms using Julia Silge's methodology seen here: https://juliasilge.com/blog/tidy-word-vectors/
+-find full sentences that use these words or the top # of synonyms to those words
+
+When I started playing with word2vec four years ago I needed (and luckily had) tons of supercomputer time. But because of advances in our understanding of word2vec, computing word vectors now takes fifteen minutes on a single run-of-the-mill computer with standard numerical libraries1. Word vectors are awesome but you don’t need a neural network – and definitely don’t need deep learning – to find them (https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/).
+
+```{r}
+normalized_prob <- read.csv("normalized_prob.csv")
+```
+
+Transform tidy dataframe to matrix
+```{r}
+pmi_matrix <- normalized_prob %>%
+    na.omit() %>%
+    mutate(pmi = log10(p_together)) %>%
+    cast_sparse(word1, word2, pmi)
+```
+
+This class is the dgCMatrix class, a class of sparse numeric matrices in R. Text data like this represented in matrix form usually has lots and lots of zeroes, so we want to make use of sparse data structures to save us time and memory and all that.
+```{r}
+class(pmi_matrix)
+```
+
+We want to get information out of this giant matrix in a more useful form, so it’s time for singular value decomposition--write more about this here, make sure it's understood!
+```{r}
+library(irlba)
+
+pmi_svd <- irlba(pmi_matrix, 256, maxit = 1e3)
+```
+
+The number 256 in the irlba function means that we are finding 256-dimensional vectors for the words. This is another thing that Julia Silge was not sure exactly what the best number is, but it will be easy to experiment with. Doing the matrix factorization is another part of this process that is a bit time intensive, but certainly not slow compared to training word2vec on a big corpus!
+
+Once we have the singular value decomposition, we can get out the word vectors:
+```{r}
+word_vectors <- pmi_svd$u
+rownames(word_vectors) <- rownames(pmi_matrix)
+```
+
+Now we can search our matrix of word vectors to find synonyms. This function tidies the data up as well.
+```{r}
 library(widyr)
-require(textstem)
 
-dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
-dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
-```
-
-Separate by Sentence
-```{r}
-cleaninterview <- function(interview) {
-  interview %>% 
-    tolower() %>%
-    str_replace_all("ms. ", "miss") %>%
-    str_replace_all("st. ", "saint") %>%
-    str_split("\\. | \\? | \\! ") %>%
-    as.data.frame()
+search_synonyms <- function(word_vectors, selected_vector) {
+    
+    similarities <- word_vectors %*% selected_vector %>%
+        tidy() %>%
+        as_tibble() %>%
+        rename(token = .rownames,
+               similarity = unrowname.x.)
+    
+    similarities %>%
+        arrange(-similarity)    
 }
 
-changecolname <- function(interview) {
-  colnames(interview)[1] <- "sentences"
-  interview$sentences <- as.character(interview$sentences)
-  interview
-}
-
-allsentences <- function(interviewfolder){
-  interview_out <- rep(0, nrow(dat_word))
-  
-  for (i in 1:nrow(dat_word)) {
-    cleandat <- changecolname(cleaninterview(dat_word$text[i]))
-    interview_out[[i]] <- cleandat
-  }
-  
-  sentences <- rbindlist(interview_out, fill=TRUE)
-  return(sentences) #this puts them all into one data table
-}
-
-unclean_sentences <- allsentences(dat_word)
-
-#for some reason, there are "\n"s in the dataset--replace them with spaces.
-unclean_sentences$sentences <- str_replace_all(unclean_sentences$sentences, "\n", " ")
-
-unclean_sentences <- unclean_sentences %>% 
-  rowid_to_column("ID") %>% #make ID column
-  mutate(ID = paste("doc", ID), sentences=as.character(sentences), nchar = nchar(sentences)) %>%
-  filter(nchar>35) #need this, because it 1) takes out short answers with little meaning, ex. "Yes" and 2) takes out answers that are *just* stopwords. May lose some meaning here, but guessing not a lot--can revisit later if need be.
-
-# filter(grepl("as:", sentences)==FALSE) #this code takes out Amy Sullivan's questions--this takes forever when splitting on the sentence level!! Took out, but may put back in
+treatment <- search_synonyms(word_vectors, word_vectors["treatment",])
+treatment
 ```
 
-Clean dataframe by taking out unimportant words
+See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "word math" ex. king - man + woman = queen.
 
-Other stopwords to take out: most common words in English lexicon, words with less than 3 characters (maybe words with less than 4?), delete.stop.words stylo package, stop_words tidytext package, stopwords tm package, remove numbers and punctuation, 
-```{r}
-new <- unclean_sentences
 
-no.stopwords <- function(df){
-  '%nin%' <- Negate('%in%')
-  wordlist <- unlist(strsplit(df, " "))
-  without.stopwords <- wordlist[wordlist %nin% stopwords()]
-  str_c(without.stopwords,collapse=' ')  
-}
 
-#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
-for(i in 1:nrow(new)) {
-  new$sentences[[i]] <- no.stopwords(new$sentences[[i]])
-}
 
-#test: show what this does
-unclean_sentences$sentences[2]
-new$sentences[2]
-```
 
-Filter out words that are just one or two characters
-```{r}
-library(stringr)
 
-for(i in 1:nrow(new)) {
-  new$sentences[[i]] <- 
-paste(str_extract_all(new$sentences, '\\w{3,}')[[i]], collapse=' ')
-}
-```
 
-Clean dataframe by concatenating words that appear together relatively often
 
-In the code below, the window size is 1, therefore, we will be predicting the words at context location (t-1) and (t+1), so the words that appear before and after a given word.
-```{r}
-#Get skipgram probabilities
-tidy_skipgrams <- new %>%
-    unnest_tokens(ngram, sentences, token = "ngrams", n=12) %>% #sets sliding window of 2
-    mutate(skipgramID = row_number()) %>% #set row number as the ID
-    unnest_tokens(word, ngram)
 
-#using counts and proportions, finds skipgram probabilities
-skipgram_probs <- tidy_skipgrams %>%
-    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
-    mutate(p = n / sum(n))
 
-#find probability of each word occurring in this corpus
-unigram_probs <- new %>%
-    unnest_tokens(word, sentences) %>%
-    count(word, sort = TRUE) %>%
-    mutate(p = n / sum(n))
 
-normalized_prob <- skipgram_probs %>%
-    filter(n > 20) %>%
-    rename(word1 = item1, word2 = item2) %>%
-    left_join(unigram_probs %>%
-                  select(word1 = word, p1 = p),
-              by = "word1") %>%
-    left_join(unigram_probs %>%
-                  select(word2 = word, p2 = p),
-              by = "word2") %>%
-    mutate(p_together = p / p1 / p2)
-```
 
-What are the words most associated with treatment in this dataset? 
-```{r}
-normalized_prob %>% 
-    filter(word1 == "treatment") %>%
-    arrange(-p_together)
-```
+

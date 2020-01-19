@@ -5,6 +5,13 @@ date: "1/16/2020"
 output: html_document
 ---
 
+Goal for this document:
+-separate each sentence out and label each sentence by the document it came from
+-treat each sentence as a document
+-take out stopwords using stopwords() package
+-take out words that are less than 3 characters long
+-using Julia Silge's methodology, https://juliasilge.com/blog/tidy-word-vectors/, get normalized skipgram probability and concatenate words that appear together often
+
 ```{r message=FALSE}
 require(readtext)
 library(dplyr)
@@ -97,7 +104,7 @@ paste(str_extract_all(new$sentences, '\\w{4,}')[[i]], collapse=' ')
 }
 ```
 
-Clean dataframe by concatenating words that appear together relatively often
+Clean dataframe by concatenating words that appear together relatively often: see https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/ for methods description
 
 In the code below, the window size is 1, therefore, we will be predicting the words at context location (t-1) and (t+1), so the words that appear before and after a given word.
 ```{r}
@@ -136,6 +143,10 @@ What are the words most associated with treatment in this dataset?
 normalized_prob %>%
     filter(word1 == "treatment") %>%
     arrange(-p_together)
+```
+
+```{r}
+write.csv(normalized_prob, "normalized_prob.csv")
 ```
 
 ```{r}
