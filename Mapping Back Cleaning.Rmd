@@ -6,66 +6,11 @@ output: html_document
 ---
 
 Goal for this document: 
--take top words for each cluster
+-take top words for each cluster, and map them to sentences
 -find the synonyms using Julia Silge's methodology seen here: https://juliasilge.com/blog/tidy-word-vectors/
 -find full sentences that use these words or the top # of synonyms to those words
 
-When I started playing with word2vec four years ago I needed (and luckily had) tons of supercomputer time. But because of advances in our understanding of word2vec, computing word vectors now takes fifteen minutes on a single run-of-the-mill computer with standard numerical libraries1. Word vectors are awesome but you don’t need a neural network – and definitely don’t need deep learning – to find them (https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/).
-
-```{r}
-normalized_prob <- read.csv("normalized_prob.csv")
-```
-
-Transform tidy dataframe to matrix
-```{r}
-pmi_matrix <- normalized_prob %>%
-    na.omit() %>%
-    mutate(pmi = log10(p_together)) %>%
-    cast_sparse(word1, word2, pmi)
-```
-
-This class is the dgCMatrix class, a class of sparse numeric matrices in R. Text data like this represented in matrix form usually has lots and lots of zeroes, so we want to make use of sparse data structures to save us time and memory and all that.
-```{r}
-class(pmi_matrix)
-```
-
-We want to get information out of this giant matrix in a more useful form, so it’s time for singular value decomposition--write more about this here, make sure it's understood!
-```{r}
-library(irlba)
-
-pmi_svd <- irlba(pmi_matrix, 256, maxit = 1e3)
-```
-
-The number 256 in the irlba function means that we are finding 256-dimensional vectors for the words. This is another thing that Julia Silge was not sure exactly what the best number is, but it will be easy to experiment with. Doing the matrix factorization is another part of this process that is a bit time intensive, but certainly not slow compared to training word2vec on a big corpus!
-
-Once we have the singular value decomposition, we can get out the word vectors:
-```{r}
-word_vectors <- pmi_svd$u
-rownames(word_vectors) <- rownames(pmi_matrix)
-```
-
-Now we can search our matrix of word vectors to find synonyms. This function tidies the data up as well.
-```{r}
-library(widyr)
-
-search_synonyms <- function(word_vectors, selected_vector) {
-    
-    similarities <- word_vectors %*% selected_vector %>%
-        tidy() %>%
-        as_tibble() %>%
-        rename(token = .rownames,
-               similarity = unrowname.x.)
-    
-    similarities %>%
-        arrange(-similarity)    
-}
-
-treatment <- search_synonyms(word_vectors, word_vectors["treatment",])
-treatment
-```
-
-See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "word math" ex. king - man + woman = queen.
-
+Top words for cluster, mapped:
 ```{r}
 words_in_clusters <- read.csv("words_in_clusters.csv")
 words_in_clusters <- words_in_clusters %>% mutate_all(as.character)
@@ -127,7 +72,61 @@ new <- new %>%
 ```
 
 
+Because of advances in our understanding of word2vec, computing word vectors now takes fifteen minutes on a single run-of-the-mill computer with standard numerical libraries1. Word vectors are awesome but you don’t need a neural network – and definitely don’t need deep learning – to find them (https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/).
 
+```{r}
+normalized_prob <- read.csv("normalized_prob.csv")
+```
+
+Transform tidy dataframe to matrix
+```{r}
+pmi_matrix <- normalized_prob %>%
+    na.omit() %>%
+    mutate(pmi = log10(p_together)) %>%
+    cast_sparse(word1, word2, pmi)
+```
+
+This class is the dgCMatrix class, a class of sparse numeric matrices in R. Text data like this represented in matrix form usually has lots and lots of zeroes, so we want to make use of sparse data structures to save us time and memory and all that.
+```{r}
+class(pmi_matrix)
+```
+
+We want to get information out of this giant matrix in a more useful form, so it’s time for singular value decomposition--write more about this here, make sure it's understood!
+```{r}
+library(irlba)
+
+pmi_svd <- irlba(pmi_matrix, 256, maxit = 1e3)
+```
+
+The number 256 in the irlba function means that we are finding 256-dimensional vectors for the words. This is another thing that Julia Silge was not sure exactly what the best number is, but it will be easy to experiment with. Doing the matrix factorization is another part of this process that is a bit time intensive, but certainly not slow compared to training word2vec on a big corpus!
+
+Once we have the singular value decomposition, we can get out the word vectors:
+```{r}
+word_vectors <- pmi_svd$u
+rownames(word_vectors) <- rownames(pmi_matrix)
+```
+
+Now we can search our matrix of word vectors to find synonyms. This function tidies the data up as well.
+```{r}
+library(widyr)
+
+search_synonyms <- function(word_vectors, selected_vector) {
+    
+    similarities <- word_vectors %*% selected_vector %>%
+        tidy() %>%
+        as_tibble() %>%
+        rename(token = .rownames,
+               similarity = unrowname.x.)
+    
+    similarities %>%
+        arrange(-similarity)    
+}
+
+treatment <- search_synonyms(word_vectors, word_vectors["treatment",])
+treatment
+```
+
+See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "word math" ex. king - man + woman = queen.
 
 
 
