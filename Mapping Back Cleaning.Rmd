@@ -78,22 +78,6 @@ new <- new %>%
     )
 ```
 
-```{r}
-listofwords <- words_in_clusters[,2]
-listofwords
-
-new$sentences[1]
-```
-
-```{r}
-detection <- str_detect(new$sentences[1], listofwords, negate = FALSE) %>% as.data.frame() %>% mutate_all(as.character)
-detection
-```
-
-```{r}
-suppressWarnings(str_detect(detection, "TRUE"))
-```
-
 Goal:
 -For each row in words_in_clusters, check if the top 20-30 words of each cluster (column) are in each row of new$sentences
 -Then, make a new column named for the cluster (column) they are from, with a TRUE if that sentence (document) includes a word from the given cluster (column)
