@@ -9,6 +9,10 @@ Goal for this document:
 -take top words for each cluster, and map them to sentences
 -find the synonyms using Julia Silge's methodology seen here: https://juliasilge.com/blog/tidy-word-vectors/
 -find full sentences that use these words or the top # of synonyms to those words
+```{r}
+library(dplyr)
+library(stringr)
+```
 
 Top words for cluster, mapped:
 ```{r}
@@ -49,7 +53,8 @@ This takes a real long time...even for just the top 3 clusters. What to do?
 #This checks the sentences to see if a given cluster is in there
 check.cluster.i <- function(df, i){
   listofwords <- words_in_clusters[,i+1]
-  detection <- str_detect(df, listofwords, negate = FALSE) %>% 
+  pattern <- paste(listofwords, collapse = "|")
+  detection <- str_detect(df, pattern, negate = FALSE) %>%
     as.data.frame() %>% 
     mutate_all(as.character)
   suppressWarnings(str_detect(detection, "TRUE"))
@@ -70,6 +75,14 @@ new <- new %>%
   mutate(V1 = ifelse(V1 == TRUE, "V1", ""), V2= ifelse(V2 == TRUE, "V2", ""), V3 = ifelse(V3 == TRUE, "V3", "")) %>%
   mutate(clusters = paste(V1, V2, V3, sep=" "))
 ```
+
+Another idea for mapping:
+-str_replace_all, replace words stigma -> topic1word1
+-then, re-split the interview into sentences and see what words from the different topics are in there
+-gives us the ability to see which topics are talked about in which order *within* a sentence
+-would need to restrict to the *unique* words, or if the word is in multiple topics, ex. 2 3 and 4, say topic234word
+-make graphic/table showing overlap in words between topics
+
 
 
 Because of advances in our understanding of word2vec, computing word vectors now takes fifteen minutes on a single run-of-the-mill computer with standard numerical libraries1. Word vectors are awesome but you don’t need a neural network – and definitely don’t need deep learning – to find them (https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/).
