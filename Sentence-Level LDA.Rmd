@@ -66,8 +66,10 @@ lda_model$plot()
 Get words from first cluster
 ```{r}
 top_words <- lda_model$get_top_words(n = 30, lambda = 0.3)
-top_words[,1]
+top_words <- as.data.frame(top_words)
 ```
 
-
+```{r}
+write.csv(top_words, "words_in_clusters.csv")
+```
 
