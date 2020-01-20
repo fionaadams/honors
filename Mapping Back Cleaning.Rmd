@@ -30,25 +30,7 @@ new <- new %>%
 Goal:
 -For each row in words_in_clusters, check if the top 20-30 words of each cluster (column) are in each row of new$sentences
 -Then, make a new column named for the cluster (column) they are from, with a TRUE if that sentence (document) includes a word from the given cluster (column)
-```{r}
-#This checks the sentences to see if cluster 1 is in there
-check.cluster1 <- function(df){
-  listofwords <- words_in_clusters[,2]
-  detection <- str_detect(df, listofwords, negate = FALSE) %>% 
-    as.data.frame() %>% 
-    mutate_all(as.character)
-  suppressWarnings(str_detect(detection, "TRUE"))
-}
 
-check.cluster1(new$sentences[1])
-
-#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
-for(i in 1:nrow(new)) {
-  new$V1[[i]] <- check.cluster1(new$sentences[[i]])
-}
-```
-
-This takes a real long time...even for just the top 3 clusters. What to do?
 ```{r}
 #This checks the sentences to see if a given cluster is in there
 check.cluster.i <- function(df, i){
@@ -60,10 +42,28 @@ check.cluster.i <- function(df, i){
   suppressWarnings(str_detect(detection, "TRUE"))
 }
 
+#future steps: automate this so it changes based on the number of clusters there actually are!! can't be that hard??
 for(i in 1:nrow(new)) {
   new$V1[[i]] <- check.cluster.i(new$sentences[[i]], 1)
   new$V2[[i]] <- check.cluster.i(new$sentences[[i]], 2)
   new$V3[[i]] <- check.cluster.i(new$sentences[[i]], 3)
+  new$V4[[i]] <- check.cluster.i(new$sentences[[i]], 4)
+  new$V5[[i]] <- check.cluster.i(new$sentences[[i]], 5)
+  new$V6[[i]] <- check.cluster.i(new$sentences[[i]], 6)
+  new$V7[[i]] <- check.cluster.i(new$sentences[[i]], 7)
+  new$V8[[i]] <- check.cluster.i(new$sentences[[i]], 8)
+  new$V9[[i]] <- check.cluster.i(new$sentences[[i]], 9)
+  new$V10[[i]] <- check.cluster.i(new$sentences[[i]], 10)
+  new$V11[[i]] <- check.cluster.i(new$sentences[[i]], 11)
+  new$V12[[i]] <- check.cluster.i(new$sentences[[i]], 12)
+  new$V13[[i]] <- check.cluster.i(new$sentences[[i]], 13)
+  new$V14[[i]] <- check.cluster.i(new$sentences[[i]], 14)
+  new$V15[[i]] <- check.cluster.i(new$sentences[[i]], 15)
+  new$V16[[i]] <- check.cluster.i(new$sentences[[i]], 16)
+  new$V17[[i]] <- check.cluster.i(new$sentences[[i]], 17)
+  new$V18[[i]] <- check.cluster.i(new$sentences[[i]], 18)
+  new$V19[[i]] <- check.cluster.i(new$sentences[[i]], 19)
+  new$V20[[i]] <- check.cluster.i(new$sentences[[i]], 20)
 }
 ```
 
@@ -71,9 +71,14 @@ Make a new column indicating which clusters the sentence is part of (if any), ex
 
 Is there a better way to do this?? This does V1, V2, V3 but seems like bad coding
 ```{r}
+new$V1 <- str_replace(new$V1, "TRUE", "V1")
+new$V2 <- str_replace(new$V1, "TRUE", "V2")
+new$V3 <- str_replace(new$V1, "TRUE", "V3")
+new$V4 <- str_replace(new$V1, "TRUE", "V4")
+new$V5<- str_replace(new$V1, "TRUE", "V5")
+
 new <- new %>% 
-  mutate(V1 = ifelse(V1 == TRUE, "V1", ""), V2= ifelse(V2 == TRUE, "V2", ""), V3 = ifelse(V3 == TRUE, "V3", "")) %>%
-  mutate(clusters = paste(V1, V2, V3, sep=" "))
+  mutate(clusters = paste(V1, V2, V3, V4, V5, sep=" "))
 ```
 
 Another idea for mapping:
@@ -82,65 +87,4 @@ Another idea for mapping:
 -gives us the ability to see which topics are talked about in which order *within* a sentence
 -would need to restrict to the *unique* words, or if the word is in multiple topics, ex. 2 3 and 4, say topic234word
 -make graphic/table showing overlap in words between topics
-
-
-
-Because of advances in our understanding of word2vec, computing word vectors now takes fifteen minutes on a single run-of-the-mill computer with standard numerical libraries1. Word vectors are awesome but you don’t need a neural network – and definitely don’t need deep learning – to find them (https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/).
-
-```{r}
-normalized_prob <- read.csv("normalized_prob.csv")
-```
-
-Transform tidy dataframe to matrix
-```{r}
-pmi_matrix <- normalized_prob %>%
-    na.omit() %>%
-    mutate(pmi = log10(p_together)) %>%
-    cast_sparse(word1, word2, pmi)
-```
-
-This class is the dgCMatrix class, a class of sparse numeric matrices in R. Text data like this represented in matrix form usually has lots and lots of zeroes, so we want to make use of sparse data structures to save us time and memory and all that.
-```{r}
-class(pmi_matrix)
-```
-
-We want to get information out of this giant matrix in a more useful form, so it’s time for singular value decomposition--write more about this here, make sure it's understood!
-```{r}
-library(irlba)
-
-pmi_svd <- irlba(pmi_matrix, 256, maxit = 1e3)
-```
-
-The number 256 in the irlba function means that we are finding 256-dimensional vectors for the words. This is another thing that Julia Silge was not sure exactly what the best number is, but it will be easy to experiment with. Doing the matrix factorization is another part of this process that is a bit time intensive, but certainly not slow compared to training word2vec on a big corpus!
-
-Once we have the singular value decomposition, we can get out the word vectors:
-```{r}
-word_vectors <- pmi_svd$u
-rownames(word_vectors) <- rownames(pmi_matrix)
-```
-
-Now we can search our matrix of word vectors to find synonyms. This function tidies the data up as well.
-```{r}
-library(widyr)
-
-search_synonyms <- function(word_vectors, selected_vector) {
-    
-    similarities <- word_vectors %*% selected_vector %>%
-        tidy() %>%
-        as_tibble() %>%
-        rename(token = .rownames,
-               similarity = unrowname.x.)
-    
-    similarities %>%
-        arrange(-similarity)    
-}
-
-treatment <- search_synonyms(word_vectors, word_vectors["treatment",])
-treatment
-```
-
-See end of her blog https://juliasilge.com/blog/tidy-word-vectors/ for some "word math" ex. king - man + woman = queen.
-
-
-
 
