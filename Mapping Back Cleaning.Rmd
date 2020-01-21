@@ -31,8 +31,10 @@ Goal:
 -For each row in words_in_clusters, check if the top 20-30 words of each cluster (column) are in each row of new$sentences
 -Then, make a new column named for the cluster (column) they are from, with a TRUE if that sentence (document) includes a word from the given cluster (column)
 
+
 ```{r}
-#This checks the sentences to see if a given cluster is in there
+library(dplyr)
+library(stringr)
 check.cluster.i <- function(df, i){
   listofwords <- words_in_clusters[,i+1]
   pattern <- paste(listofwords, collapse = "|")
@@ -42,30 +44,32 @@ check.cluster.i <- function(df, i){
   suppressWarnings(str_detect(detection, "TRUE"))
 }
 
-#future steps: automate this so it changes based on the number of clusters there actually are!! can't be that hard??
+
+number_of_clusters <- 20
 for(i in 1:nrow(new)) {
-  new$V1[[i]] <- check.cluster.i(new$sentences[[i]], 1)
-  new$V2[[i]] <- check.cluster.i(new$sentences[[i]], 2)
-  new$V3[[i]] <- check.cluster.i(new$sentences[[i]], 3)
-  new$V4[[i]] <- check.cluster.i(new$sentences[[i]], 4)
-  new$V5[[i]] <- check.cluster.i(new$sentences[[i]], 5)
-  new$V6[[i]] <- check.cluster.i(new$sentences[[i]], 6)
-  new$V7[[i]] <- check.cluster.i(new$sentences[[i]], 7)
-  new$V8[[i]] <- check.cluster.i(new$sentences[[i]], 8)
-  new$V9[[i]] <- check.cluster.i(new$sentences[[i]], 9)
-  new$V10[[i]] <- check.cluster.i(new$sentences[[i]], 10)
-  new$V11[[i]] <- check.cluster.i(new$sentences[[i]], 11)
-  new$V12[[i]] <- check.cluster.i(new$sentences[[i]], 12)
-  new$V13[[i]] <- check.cluster.i(new$sentences[[i]], 13)
-  new$V14[[i]] <- check.cluster.i(new$sentences[[i]], 14)
-  new$V15[[i]] <- check.cluster.i(new$sentences[[i]], 15)
-  new$V16[[i]] <- check.cluster.i(new$sentences[[i]], 16)
-  new$V17[[i]] <- check.cluster.i(new$sentences[[i]], 17)
-  new$V18[[i]] <- check.cluster.i(new$sentences[[i]], 18)
-  new$V19[[i]] <- check.cluster.i(new$sentences[[i]], 19)
-  new$V20[[i]] <- check.cluster.i(new$sentences[[i]], 20)
+  for(j in 1:number_of_clusters){
+  new[[paste0("cluster_",j)]][[i]] <- check.cluster.i(new$sentences[[i]], j)
+}
 }
 ```
+
+```{r}
+new[new=="FALSE"]<-NA
+```
+
+```{r}
+for(i in 1:number_of_clusters){
+  new[new=="TRUE"]<-colnames(new)[3:ncol(new)][[i]]
+}
+```
+
+
+
+```{r}
+columns <- colnames(new)[4:ncol(new)]
+new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = " " )
+```
+
 
 Make a new column indicating which clusters the sentence is part of (if any), ex. V1, V2
 
