@@ -31,16 +31,17 @@ Goal:
 -For each row in words_in_clusters, check if the top 20-30 words of each cluster (column) are in each row of new$sentences
 -Then, make a new column named for the cluster (column) they are from, with a TRUE if that sentence (document) includes a word from the given cluster (column)
 
-
 ```{r}
 library(dplyr)
 library(stringr)
 check.cluster.i <- function(df, i){
   listofwords <- words_in_clusters[,i+1]
   pattern <- paste(listofwords, collapse = "|")
+  
   detection <- str_detect(df, pattern, negate = FALSE) %>%
     as.data.frame() %>% 
     mutate_all(as.character)
+  
   suppressWarnings(str_detect(detection, "TRUE"))
 }
 
@@ -54,35 +55,27 @@ for(i in 1:nrow(new)) {
 ```
 
 ```{r}
-new[new=="FALSE"]<-NA
+write.csv(new, "testnew.csv")
 ```
 
 ```{r}
+new <- read.csv("testnew.csv")
+```
+
+```{r}
+new[new=="FALSE"]<-""
+
+#now, automate
 for(i in 1:number_of_clusters){
-  new[new=="TRUE"]<-colnames(new)[3:ncol(new)][[i]]
+  ifelse(colnames(new)[5:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[5:ncol(new)][[i]] <- str_replace(new[5:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_")), "breaks")
+#str_replace(new[5:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_"))
 }
 ```
 
-
-
 ```{r}
-columns <- colnames(new)[4:ncol(new)]
+#make a column that shows all of the clusters in each sentence, if any
+columns <- colnames(new)[5:ncol(new)]
 new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = " " )
-```
-
-
-Make a new column indicating which clusters the sentence is part of (if any), ex. V1, V2
-
-Is there a better way to do this?? This does V1, V2, V3 but seems like bad coding
-```{r}
-new$V1 <- str_replace(new$V1, "TRUE", "V1")
-new$V2 <- str_replace(new$V1, "TRUE", "V2")
-new$V3 <- str_replace(new$V1, "TRUE", "V3")
-new$V4 <- str_replace(new$V1, "TRUE", "V4")
-new$V5<- str_replace(new$V1, "TRUE", "V5")
-
-new <- new %>% 
-  mutate(clusters = paste(V1, V2, V3, V4, V5, sep=" "))
 ```
 
 Another idea for mapping:
