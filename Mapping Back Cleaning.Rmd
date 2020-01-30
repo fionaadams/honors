@@ -5,16 +5,31 @@ date: "1/16/2020"
 output: html_document
 ---
 
+Slack Leslie!:
+Each read 3 interviews, one of each "type of person" (Different people)
+Underline/highlight parts that will be recurring themes
+
+Potentially:
+Identify sentences within a theme, they should have similar sentence vector representation
+put all other sentences in vector representation, find ones that are close
+
+Meantime:
+1. define the clusters by the words that are unique to that cluster
+2. doc 1 SHOULD BE the document, not the sentence ID! Fix this!
+3. supervised deletion of clusters that are unclear
+4. Do the mapping on the original interview -- full sentences! map sentence to cluster it has words from
+
+Look at:
+What clusters are mapped to places that are valuable for a museum exhibit setting, and how do we keep these/refine these to make them more valuable?
+
 Goal for this document: 
 -take top words for each cluster, and map them to sentences
--find the synonyms using Julia Silge's methodology seen here: https://juliasilge.com/blog/tidy-word-vectors/
--find full sentences that use these words or the top # of synonyms to those words
+
 ```{r}
 library(dplyr)
 library(stringr)
 ```
 
-Top words for cluster, mapped:
 ```{r}
 words_in_clusters <- read.csv("words_in_clusters.csv")
 words_in_clusters <- words_in_clusters %>% mutate_all(as.character)
@@ -47,36 +62,31 @@ check.cluster.i <- function(df, i){
 
 
 number_of_clusters <- 20
+
 for(i in 1:nrow(new)) {
   for(j in 1:number_of_clusters){
   new[[paste0("cluster_",j)]][[i]] <- check.cluster.i(new$sentences[[i]], j)
 }
 }
+
+new[new=="FALSE"]<-""
+
+for(i in 1:number_of_clusters){
+  ifelse(colnames(new)[4:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[4:ncol(new)][[i]] <- str_replace(new[4:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_")), "breaks")
+}
 ```
 
 ```{r}
-write.csv(new, "testnew.csv")
+#make a column that shows all of the clusters in each sentence, if any
+columns <- colnames(new)[4:ncol(new)]
+new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = " " )
 ```
 
 ```{r}
 new <- read.csv("testnew.csv")
 ```
 
-```{r}
-new[new=="FALSE"]<-""
 
-#now, automate
-for(i in 1:number_of_clusters){
-  ifelse(colnames(new)[5:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[5:ncol(new)][[i]] <- str_replace(new[5:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_")), "breaks")
-#str_replace(new[5:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_"))
-}
-```
-
-```{r}
-#make a column that shows all of the clusters in each sentence, if any
-columns <- colnames(new)[5:ncol(new)]
-new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = " " )
-```
 
 Another idea for mapping:
 -str_replace_all, replace words stigma -> topic1word1

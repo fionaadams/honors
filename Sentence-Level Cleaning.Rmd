@@ -14,6 +14,7 @@ Goal for this document:
 
 ```{r message=FALSE}
 require(readtext)
+library(plyr)
 library(dplyr)
 library(data.table)
 library(lattice)
@@ -26,10 +27,48 @@ library(widyr)
 require(textstem)
 
 dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
-dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
+#dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
 ```
 
-Separate by Sentence
+```{r}
+#get this as a nested dataframe
+library(tidyr)
+library(purrr)
+testing <- dat_word %>% nest(dat_word = text)
+
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    str_replace_all("ms. ", "miss") %>%
+    str_replace_all("st. ", "saint") %>%
+    str_split("\\. | \\? | \\! ") %>%
+    as.data.frame()
+}
+
+interview_out <- rep(0, nrow(dat_word))
+
+for (i in 1:nrow(testing)){
+  cleandat <- cleaninterview(testing[[2]][[i]])
+  interview_out[[i]] <- cleandat
+}
+
+library(data.table)
+```
+
+```{r}
+test <- rbindlist(interview_out, fill=TRUE, idcol = "id")
+#great!! but how to merge horizontally
+#https://stackoverflow.com/questions/14563531/combine-column-to-remove-nas
+#can't get this to work! ask for help?
+```
+
+
+
+
+
+
+
+Separate by Sentence without IDs
 ```{r}
 cleaninterview <- function(interview) {
   interview %>% 
@@ -64,7 +103,7 @@ unclean_sentences <- allsentences(dat_word)
 unclean_sentences$sentences <- str_replace_all(unclean_sentences$sentences, "\n", " ")
 
 unclean_sentences <- unclean_sentences %>% 
-  rowid_to_column("ID") %>% #make ID column
+  rowid_to_column("ID") %>% #make ID column-- FIX THIS SO IT'S DOC ID!! see Julia Silge's unnest_tokens tidytext stuffs
   mutate(ID = paste("doc", ID), sentences=as.character(sentences), nchar = nchar(sentences)) %>%
   filter(nchar>35) #need this, because it 1) takes out short answers with little meaning, ex. "Yes" and 2) takes out answers that are *just* stopwords. May lose some meaning here, but guessing not a lot--can revisit later if need be.
 
@@ -182,3 +221,27 @@ new$sentences[[9]]
 write.csv(new, "sentence_level_clean.csv")
 ```
 
+
+
+
+
+
+```{r}
+require(quanteda)
+require(tm)
+require(tidytext)
+#Make simple corpus
+corpus <- Corpus(VectorSource(dat_word)) 
+
+#Clean simple corpus
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords())
+corpus <- tm_map(corpus, stemDocument)
+corpus <- tm_map(corpus, stripWhitespace)
+
+#Turn into complex corpus
+corpus <- corpus(corpus)
+corpseg1 <- corpus_segment(corpus, pattern = "##*")
+```
