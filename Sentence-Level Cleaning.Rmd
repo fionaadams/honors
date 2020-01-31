@@ -30,6 +30,11 @@ dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*
 #dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
 ```
 
+Sentence id, get document id to repeat over and over again
+tidytext should do this?
+
+stringr --> needs loops
+
 ```{r}
 #get this as a nested dataframe
 library(tidyr)
