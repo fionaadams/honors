@@ -28,52 +28,9 @@ require(textstem)
 ```
 
 ```{r}
-dat_word <- readtext("TranscriptTest/*.docx")
+dat_word <- readtext("Transcripts/*.docx")
 dat_word <- dat_word %>% mutate(id = seq.int(nrow(dat_word)))#get numerical ids, so easier to find in future
 ```
-
-
-TO ADD: sentence ID column (within each document!!!)
-FOR EDA: line graphs of topics vs sentence number
-```{r}
-#get this as a nested dataframe
-library(tidyr)
-library(purrr)
-
-testing <- dat_word %>% nest(dat_word = text)
-
-cleaninterview <- function(interview) {
-  interview %>% 
-    tolower() %>%
-    str_replace_all("ms. ", "miss") %>%
-    str_replace_all("st. ", "saint") %>%
-    str_split("\\. | \\? | \\! ") %>%
-    as.data.frame()
-}
-
-interview_out <- rep(0, nrow(dat_word))
-
-for (i in 1:nrow(testing)){
-  cleandat <- cleaninterview(testing[[2]][[i]])
-  interview_out[[i]] <- cleandat
-}
-
-library(data.table)
-```
-
-```{r}
-test <- rbindlist(interview_out, fill=FALSE, idcol = "id")
-
-colnames(test)[2] <- "sentences"
-
-dat_word <- dat_word %>% select(id, doc_id)
-
-final <- left_join(test, dat_word, by="id")
-#maybe: map doc number back to the document name in dat_word using dplyr::left_join
-```
-
-
-
 
 Separate by Sentence without IDs
 ```{r}
@@ -229,26 +186,3 @@ write.csv(new, "sentence_level_clean.csv")
 ```
 
 
-
-
-
-
-```{r}
-require(quanteda)
-require(tm)
-require(tidytext)
-#Make simple corpus
-corpus <- Corpus(VectorSource(dat_word)) 
-
-#Clean simple corpus
-corpus <- tm_map(corpus, content_transformer(tolower))
-corpus <- tm_map(corpus, removeNumbers)
-corpus <- tm_map(corpus, removePunctuation)
-corpus <- tm_map(corpus, removeWords, stopwords())
-corpus <- tm_map(corpus, stemDocument)
-corpus <- tm_map(corpus, stripWhitespace)
-
-#Turn into complex corpus
-corpus <- corpus(corpus)
-corpseg1 <- corpus_segment(corpus, pattern = "##*")
-```
