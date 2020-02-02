@@ -25,20 +25,21 @@ library(stopwords)
 library(tidytext)
 library(widyr)
 require(textstem)
-
-dat_word <- readtext("/Users/fionaadams/Documents/GitHub/honors/TranscriptTest/*.docx")
-#dat_word <- dat_word %>% mutate(num_id = paste("doc", seq.int(nrow(dat_word)))) #get numerical ids, so easier to find in future
 ```
 
-Sentence id, get document id to repeat over and over again
-tidytext should do this?
+```{r}
+dat_word <- readtext("TranscriptTest/*.docx")
+dat_word <- dat_word %>% mutate(id = seq.int(nrow(dat_word)))#get numerical ids, so easier to find in future
+```
 
-stringr --> needs loops
 
+TO ADD: sentence ID column (within each document!!!)
+FOR EDA: line graphs of topics vs sentence number
 ```{r}
 #get this as a nested dataframe
 library(tidyr)
 library(purrr)
+
 testing <- dat_word %>% nest(dat_word = text)
 
 cleaninterview <- function(interview) {
@@ -61,14 +62,15 @@ library(data.table)
 ```
 
 ```{r}
-test <- rbindlist(interview_out, fill=TRUE, idcol = "id")
-#great!! but how to merge horizontally
-#https://stackoverflow.com/questions/14563531/combine-column-to-remove-nas
-#can't get this to work! ask for help?
+test <- rbindlist(interview_out, fill=FALSE, idcol = "id")
+
+colnames(test)[2] <- "sentences"
+
+dat_word <- dat_word %>% select(id, doc_id)
+
+final <- left_join(test, dat_word, by="id")
+#maybe: map doc number back to the document name in dat_word using dplyr::left_join
 ```
-
-
-
 
 
 

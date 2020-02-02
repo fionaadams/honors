@@ -1,0 +1,117 @@
+---
+title: "Clean + LDA + Mapping"
+author: "Fiona Adams"
+date: "1/31/2020"
+output: html_document
+---
+
+#Packages and Read In
+```{r}
+library(dplyr)
+library(data.table)
+```
+
+```{r}
+transcripts <- readtext("Transcripts/*.docx")
+
+for(i in 1:nrow(transcripts)){
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Transcript Final copy.docx")
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Transcript copy.docx")
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], " copy.docx")
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Interview 1")
+}
+```
+
+#Split into Sentences, with a doc ID
+```{r}
+#nest the dataframe so each row is a document with nested text
+nested_transcripts <- transcripts %>% nest(transcripts = text)
+
+#function that splits interview into sentences
+cleaninterview <- function(interview) {
+  interview %>% 
+    tolower() %>%
+    str_replace_all("ms. ", "miss") %>%
+    str_replace_all("st. ", "saint") %>%
+    str_split("\\. | \\? | \\! ")
+}
+
+#make empty dataframe
+interview_out <- rep(0, nrow(transcripts))
+
+#apply cleaninterview function to each row of nested dataframe
+for (i in 1:nrow(nested_transcripts)){
+  cleandat <- cleaninterview(nested_transcripts[[2]][[i]])
+  interview_out[[i]] <- cleandat
+}
+
+#turn list into dataframe with id column
+interview_out <- rbindlist(interview_out, fill=FALSE, idcol = "id")
+
+#change column name of dataframe
+colnames(interview_out)[2] <- "sentences"
+```
+
+```{r}
+#add document id
+
+#get numerical ids for each document and take out sentences
+transcripts <- transcripts %>% mutate(id = seq.int(nrow(transcripts))) %>% select(id, doc_id)
+
+#map doc number back to the document name in dat_word using dplyr::left_join
+final <- left_join(interview_out, transcripts, by="id") %>% unique()
+```
+
+```{r}
+#add sentence id
+
+#make a table that counts how much each id occurs
+count_table <- as.data.frame(table(final$id))
+
+#initialize a list
+list_out <- list()
+
+#for the # of documents (# of ids), make a list that has the number of sentences in each doc 
+for(i in 1:nrow(count_table)){
+  list_out[[length(list_out)+1]] <- seq.int(count_table[2][i,])
+}
+
+#make this into a dataframe
+list_out <- as.data.frame(unlist(list_out))
+
+#combine this dataframe with final
+final <- cbind(final, list_out)
+
+#change colname to sentence id
+colnames(final)[4] <- "sentence_id"
+```
+
+#Clean Data
+```{r}
+clean_final <- final 
+
+#take out sentences with less than 15 characters (random #)
+clean_final <- clean_final %>% mutate(sentences=as.character(sentences), nchar = nchar(sentences)) %>% filter(nchar>15)
+
+no.stopwords <- function(df){
+  '%nin%' <- Negate('%in%')
+  wordlist <- unlist(strsplit(df, " "))
+  without.stopwords <- wordlist[wordlist %nin% stopwords()]
+  str_c(without.stopwords,collapse=' ')  
+}
+
+#replace new$sentences[[i]] with no.stopwords(new$sentences[[i]])
+for(i in 1:nrow(clean_final)) {
+  clean_final$sentences[i] <= no.stopwords(clean_final$sentences[i])
+}
+```
+
+```{r}
+#test to see if this works
+final$sentences[2]
+clean_final$sentences[2]
+```
+
+
+
+FOR EDA: line graphs of topics vs sentence number
