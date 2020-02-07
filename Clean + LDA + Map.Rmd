@@ -12,6 +12,10 @@ library(data.table)
 require(stopwords)
 library(stringr)
 require(text2vec)
+library(readtext)
+library(tidyr)
+library(tidytext)
+library(widyr)
 ```
 
 #Read In Data
@@ -217,6 +221,7 @@ words_in_clusters <- lda_model$get_top_words(n = 30, lambda = 0.3)
 words_in_clusters <- as.data.frame(words_in_clusters) %>% mutate_all(as.character)
 ```
 
+#Map the clusters
 ```{r}
 check.cluster.i <- function(df, i){
   listofwords <- words_in_clusters[,i]
@@ -240,23 +245,24 @@ for(i in 1:nrow(new)) {
 
 new[new=="FALSE"]<-""
 
-#this isn't working anymore???? wtffffff bro!!!!
 for(i in 1:number_of_clusters){
-  ifelse(colnames(new)[4:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[4:ncol(new)][[i]] <- str_replace(new[4:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_")), "breaks")
+  ifelse(colnames(new)[6:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[6:ncol(new)][[i]] <- str_replace(new[6:ncol(new)][[i]], "TRUE", paste("cluster", i, sep="_")), "breaks")
 }
-```
 
-```{r}
 #make a column that shows all of the clusters in each sentence, if any
-columns <- colnames(new)[4:ncol(new)]
+columns <- colnames(new)[6:ncol(new)]
 new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = " " )
 ```
 
 
-
-
-
-
-
-
 FOR EDA: line graphs of topics vs sentence number
+How to do this????? Need to be able to make this a "timeline" with a count, but! each sentence has only one instance of a cluster if it is within that cluster. 
+
+```{r}
+library(ggplot2)
+new %>% filter(doc_id=="Anderson_Greg" & cluster_1 == "cluster_1") %>% ggplot(aes(x=sentence_id, y=cluster_1)) + geom_jitter()
+
+new %>% filter(doc_id=="Anderson_Greg" & cluster_2 == "cluster_2") %>% ggplot(aes(x=sentence_id, y=cluster_2)) + geom_jitter()
+```
+
+
