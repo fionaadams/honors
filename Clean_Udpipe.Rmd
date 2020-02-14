@@ -1,0 +1,85 @@
+---
+title: "Clean_RunAll"
+author: "Fiona Adams"
+date: "2/13/2020"
+output: html_document
+---
+
+```{r} 
+library(udpipe)
+library(readtext)
+library(corpus)
+library(plyr)
+library(dplyr)
+```
+
+```{r}
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+
+transcripts <- readtext("All_Transcripts/*.docx")
+
+s <- udpipe_annotate(udmodel_english, transcripts$text[1:2])
+x <- data.frame(s)
+```
+
+```{r}
+'%nin%' <- Negate('%in%')
+x_stopwords <- x %>% 
+  mutate(stopword = ifelse(lemma %nin% stopwords(), "NOT.STOPWORD", "STOPWORD"))
+```
+
+```{r}
+x_filtered <- x_stopwords %>% 
+  mutate(upos = as.character(upos)) %>%
+  filter(., grepl('ADJ|ADV|INTJ|NOUN|PROPN|VERB', upos)) %>%
+  subset(., nchar(as.character(lemma)) >= 3) %>%
+  filter(., stopword != "STOPWORD")
+
+table(x$upos)
+table(x_filtered$upos)
+```
+
+```{r}
+x_concatenated <- x_filtered %>%
+  select(doc_id, sentence_id, token, upos) %>% 
+  group_by(sentence_id, doc_id) %>% 
+  summarise(text=paste(token,collapse=" ")) %>%
+  filter(text != "Yeah")
+
+#get rid of "doc" in doc_id for x_concatenated
+for(i in 1:nrow(x_concatenated)){
+  x_concatenated[2][i,] <- str_remove(x_concatenated[2][i,], "doc")
+}
+```
+
+```{r}
+#add numerical id to transcripts, and get rid of full text inclusion
+transcripts$id <- seq.int(nrow(transcripts))
+transcript_names <- transcripts %>% select(id, doc_id)
+
+#consistent colnames and data types
+colnames(x_concatenated) <- c("sentence_id", "id", "sentence")
+x_concatenated <- x_concatenated %>% mutate(id = as.numeric(id))
+
+#join them together
+final_sentences <- left_join(x_concatenated, transcript_names, by="id")
+
+#get rid of .docx
+for(i in 1:nrow(final_sentences)){
+  final_sentences[4][i,] <- str_remove(final_sentences[4][i,], ".docx")
+}
+```
+
+```{r}
+names <- read.csv("names_descriptions.csv")
+colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
+
+transcripts_final <- left_join(final_sentences, names, by="doc_id")
+```
+
+```{r}
+write.csv(transcripts_final, "udpipe_clean_sentences.csv")
+```
+
+

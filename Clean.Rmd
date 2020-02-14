@@ -18,65 +18,14 @@ library(tidytext)
 library(widyr)
 ```
 
-#Read In Data
-```{r}
-all_transcripts <- readtext("All_Transcripts/*.docx")
-
-for(i in 1:nrow(all_transcripts)){
-  all_transcripts[1][i,] <- str_remove(all_transcripts[1][i,], " 2")
-  all_transcripts[1][i,] <- str_remove(all_transcripts[1][i,], ".docx")
-}
-
-write.csv(all_transcripts, "transcripts.csv")
-
-#nest the dataframe so each row is a document with nested text
-nested_transcripts <- all_transcripts %>% nest(all_transcripts = text)
-
-#FOR SOME REASON!! NESTED_TRANSCRIPTS IS NOT THE SAME LENGTH AS ALL_TRANSCRIPTS?? This is why this isn't working!!!
-
-#function that splits interview into sentences
-cleaninterview <- function(interview) {
-  interview %>% 
-    tolower() %>%
-    str_replace_all("ms. ", "miss") %>%
-    str_replace_all("st. ", "saint") %>%
-    str_split("\\. | \\? | \\! ")
-}
-
-#make empty dataframe
-interview_out <- rep(0, nrow(all_transcripts))
-
-#apply cleaninterview function to each row of nested dataframe
-for (i in 1:nrow(nested_transcripts)){
-  cleandat <- cleaninterview(nested_transcripts[[2]][[i]])
-  interview_out[[i]] <- cleandat
-}
-
-#turn list into dataframe with id column
-interview_out <- rbindlist(interview_out, fill=FALSE, idcol = "id")
-```
-
-```{r}
-names <- read.csv("names_descriptions.csv")
-colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
-
-transcripts_final <- left_join(transcripts, names, by="doc_id")
-```
-Old stuff:
-```{r}
-transcripts <- readtext("Transcripts/*.docx")
-
-for(i in 1:nrow(transcripts)){
-  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Transcript Final copy.docx")
-  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Transcript copy.docx")
-  transcripts[1][i,] <- str_remove(transcripts[1][i,], " copy.docx")
-  transcripts[1][i,] <- str_remove(transcripts[1][i,], " Interview 1")
-}
-```
-
-
 #Split into Sentences, with a doc ID
 ```{r}
+transcripts <- readtext("All_Transcripts/*.docx")
+
+for(i in 1:nrow(transcripts)){
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], ".docx")
+}
+
 #nest the dataframe so each row is a document with nested text
 nested_transcripts <- transcripts %>% nest(transcripts = text)
 
@@ -135,15 +84,21 @@ final <- cbind(final, list_out)
 colnames(final)[4] <- "sentence_id"
 ```
 
+```{r}
+names <- read.csv("names_descriptions.csv")
+colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
+
+transcripts_final <- left_join(final, names, by="doc_id")
+```
+
 #Clean Data
 ```{r}
 # fix some formatting \ns left in dataset
 final$sentences <- str_replace_all(final$sentences, "\n", " ")
 
 # take out short sentences
-final <- final %>% mutate(sentences=as.character(sentences), nchar = nchar(sentences)) %>% filter(nchar>35)
-#FUTURE STEP: change this so that it looks for sentences that are JUST stopwords and erases those, instead of taking out sentences of a certain length
-#then, take out sentences of a certain length, but a shorter one
+# see udpipe/stopwords document for how to get this to work without the nchar > 50 workaround. For now, this is what we'll do to avoid having sentences with just stopwords in them.
+final <- final %>% mutate(sentences=as.character(sentences), nchar = nchar(sentences)) %>% filter(nchar>50)
 
 #remove unnecessary words (stopwords)
 
@@ -158,14 +113,9 @@ no.stopwords <- function(df){
 for(i in 1:nrow(final)) {
   final$sentences[[i]] <- no.stopwords(final$sentences[[i]])
 }
+```
 
-#filter out words that are just one, two, or three characters
-
-for(i in 1:nrow(final)) {
-  final$sentences[[i]] <-
-paste(str_extract_all(final$sentences, '\\w{4,}')[[i]], collapse=' ')
-}
-
+```{r}
 # clean dataframe by concatenating words that appear together relatively often
 # https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
 
@@ -213,7 +163,7 @@ final <- final %>%
         sentences = as.character(sentences)
     )
 
-#How many words to concatenate? Code below only does the first 100 rows. We shouldn't do all of them, but what should be the threshold?
+#Concatenate all words that fit the normalized probability threshold?
 for (i in 1:length(normalized_prob$pattern)) {
     final$sentences <- str_replace_all(final$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
 }
@@ -223,6 +173,7 @@ for (i in 1:length(normalized_prob$pattern)) {
 write.csv(final, "clean_sentences.csv")
 ```
 
+Not related, but interesting--next steps perhaps??
 ```{r}
 # ex. what are the words most associated with treatment in this dataset? 
 normalized_prob %>%

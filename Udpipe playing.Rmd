@@ -1,0 +1,97 @@
+---
+title: "Udpipe playing"
+author: "Fiona Adams"
+date: "2/13/2020"
+output: html_document
+---
+
+```{r} 
+library(udpipe)
+library(readtext)
+library(corpus)
+library(plyr)
+library(dplyr)
+```
+
+```{r}
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+
+transcripts <- readtext("All_Transcripts/*.docx")
+
+s <- udpipe_annotate(udmodel_english, transcripts$text[[1]])
+x <- data.frame(s)
+```
+
+```{r}
+'%nin%' <- Negate('%in%')
+x_stopwords <- x %>% 
+  mutate(stopword = ifelse(lemma %nin% stopwords(), "NOT.STOPWORD", "STOPWORD"))
+```
+
+```{r}
+x_filtered <- x_stopwords %>% 
+  mutate(upos = as.character(upos)) %>%
+  filter(., grepl('ADJ|ADV|INTJ|NOUN|PROPN|VERB', upos)) %>%
+  subset(., nchar(as.character(lemma)) >= 3) %>%
+  filter(., stopword != "STOPWORD")
+
+table(x$upos)
+table(x_filtered$upos)
+```
+
+```{r}
+x_concatenated <- x_filtered %>%
+  select(doc_id, sentence_id, token, upos) %>% 
+  group_by(sentence_id, doc_id) %>% 
+  summarise(text=paste(token,collapse=" ")) %>%
+  filter(text != "Yeah")
+```
+
+
+
+
+
+UPOS: Universal part-of-speech tag.
+```{r}
+table(x$upos)
+```
+ADJ: adjective
+ADP: adposition
+ADV: adverb
+AUX: auxiliary
+CCONJ: coordinating conjunction
+DET: determiner
+INTJ: interjection
+NOUN: noun
+NUM: numeral
+PART: particle
+PRON: pronoun
+PROPN: proper noun
+PUNCT: punctuation
+SCONJ: subordinating conjunction
+SYM: symbol
+VERB: verb
+© 2014–2020 Universal Dependencies contributors. Site powered by Annodoc and brat.
+
+GET RID OF:
+-ADP / adpositions (prepositions and postpositions, ie during, into)
+-*MAYBE* AUX: auxiliary (has, is, should, must)
+-CCONJ: coordinating conjunction (and, or, but)
+-DET: determiner (a, an, which, this)
+-NUM: numeral (1, one)
+-PART: particle (if only, let's, may you)
+-*MAYBE* PRON: pronoun (you, everyone, nobody)
+-PUNCT: punctuation (., !)
+-SCONJ: subordinating conjunction (that, if, while)
+-SYM: symbol (+, -)
+
+KEEP:
+-ADJ: adjective (big, old)
+-*MAYBE* ADV: adverb (very, exactly, nowhere)
+-INTJ: interjection (Yes!, Hello)
+-NOUN: noun (girl, cat)
+-PROPN: proper noun (Mary, NATO)
+-VERB: verb (run, eat)
+
+

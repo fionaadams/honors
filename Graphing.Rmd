@@ -1,0 +1,47 @@
+---
+title: "Graphing"
+author: "Fiona Adams"
+date: "2/14/2020"
+output: html_document
+---
+
+```{r}
+new <- read.csv("mapped_data.csv")
+```
+
+```{r}
+library(tidyr)
+vars <- c("sentence_id", paste0("cluster_", 1:20))
+#work on this! make long for better EDA stuffs
+long_new <- pivot_longer(new, cols = starts_with("cluster"), names_to="cluster")
+
+median <- median(long_new$sentence_id)
+
+# 0 --> 164: First section
+# 164 --> 328: Second section
+# 328 --> 656: Third section
+# 656 --> 984: Fourth section
+# 984 --> 1297: Fifth section
+long_new <- long_new %>%
+  filter(!is.na(value)) %>%
+  select(id, sentence_id, doc_id, description, family_experience, treatment_prof, personal_experience, value) %>%
+  mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5")))))
+```
+
+```{r}
+quantile(1:1297)
+#write function that determined id, connects id to a nchar
+#then, for each sentence within that id, give it a relative quantile value
+#case_when
+```
+
+
+
+```{r}
+#Made deciles but they're not dependent on the length of an individual interview
+library(ggplot2)
+long_new %>% 
+  filter(id==1) %>%
+  ggplot(aes(x=quadrant, y=value)) + geom_jitter()
+```
+
