@@ -7,7 +7,52 @@ output: html_document
 
 ```{r}
 new <- read.csv("mapped_data.csv")
-new[is.na(new)]<-" "
+words_in_clusters <- read.csv("words_in_clusters.csv")
+```
+
+```{r}
+transcripts <- readtext("All_Transcripts/*.docx")
+transcripts_filt <- transcripts %>% filter(doc_id == "Anderson_Greg.docx")
+
+s <- udpipe_annotate(udmodel_english, transcripts_filt$text)
+x <- data.frame(s)
+
+sentences <- as.data.frame(x$sentence[!duplicated(x$sentence)])
+colnames(sentences) <- "sentences"
+```
+
+#Map the clusters for 2 REAL TEXT INTERVIEWS LATER!
+```{r}
+library(stringr)
+
+check.cluster.i <- function(df, i){
+  listofwords <- words_in_clusters[,i]
+  pattern <- paste(listofwords, collapse = "|")
+  
+  detection <- str_detect(df, pattern, negate = FALSE) %>%
+    as.data.frame() %>% 
+    mutate_all(as.character)
+  
+  suppressWarnings(str_detect(detection, "TRUE"))
+}
+
+
+number_of_clusters <- 20
+
+#wow.. this takes 20 minutes
+for(i in 1:nrow(sentences)) {
+  for(j in 1:number_of_clusters){
+  sentences[[paste0("cluster_",j)]][[i]] <- check.cluster.i(sentences$sentences[[i]], j)
+}
+}
+
+sentences[sentences=="FALSE"]<-NA
+```
+
+```{r}
+for(i in 1:number_of_clusters){
+  ifelse(colnames(sentences)[2:ncol(sentences)][[i]]==paste("cluster", i, sep="_"), sentences[2:ncol(sentences)][[i]] <- str_replace(sentences[2:ncol(sentences)][[i]], "TRUE", paste(i)), "breaks")
+}
 ```
 
 ```{r}
@@ -33,5 +78,6 @@ interviews_together <- sentences_clusters %>%
 ```{r}
 head(interviews_together$text,1)
 ```
+
 
 

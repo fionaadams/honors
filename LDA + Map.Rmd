@@ -48,6 +48,8 @@ lda_model$plot()
 words_in_clusters <- lda_model$get_top_words(n = 30, lambda = 0.3)
 words_in_clusters <- as.data.frame(words_in_clusters) %>% 
   mutate_all(as.character)
+
+write.csv(words_in_clusters, "words_in_clusters.csv")
 ```
 
 #Map the clusters
@@ -83,42 +85,7 @@ for(i in 1:number_of_clusters){
 ```
 
 ```{r}
-
-```
-
-
-
-
-```{r}
-library(tidyr)
-vars <- c("sentence_id", paste0("cluster_", 1:20))
-#work on this! make long for better EDA stuffs
-long_new <- pivot_longer(new, cols = starts_with("cluster"), names_to="cluster")
-
-median <- median(long_new$sentence_id)
-
-# 0 --> 164: First section
-# 164 --> 328: Second section
-# 328 --> 656: Third section
-# 656 --> 984: Fourth section
-# 984 --> 1297: Fifth section
-long_new <- long_new %>%
-  filter(!is.na(value)) %>%
-  select(sentences, id, doc_id, sentence_id, value) %>%
-  mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5")))))
-```
-
-FOR EDA: line graphs of topics vs sentence number
-How to do this????? Need to be able to make this a "timeline" with a count, but! each sentence has only one instance of a cluster if it is within that cluster. 
-
-split up sentence ID into deciles or 5 groups etc.
-restrict number of clusters to the "useful" ones, and perhaps group related clusters
-
-```{r}
-library(ggplot2)
-long_new %>% 
-  filter(id==1) %>%
-  ggplot(aes(x=quadrant, y=value)) + geom_boxplot()
+write.csv(new, "mapped_data.csv")
 ```
 
 

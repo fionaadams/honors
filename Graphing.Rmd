@@ -25,8 +25,9 @@ median <- median(long_new$sentence_id)
 long_new <- long_new %>%
   filter(!is.na(value)) %>%
   select(id, sentence_id, doc_id, description, family_experience, treatment_prof, personal_experience, value) %>%
-  mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5")))))
+  mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5"))))) #case_when would be better here! create 4 new var: quad 1, quad 2, etc.
 ```
+
 
 ```{r}
 quantile(1:1297)
@@ -41,7 +42,7 @@ quantile(1:1297)
 #Made deciles but they're not dependent on the length of an individual interview
 library(ggplot2)
 long_new %>% 
-  filter(id==1) %>%
+  filter(id==3) %>%
   ggplot(aes(x=quadrant, y=value)) + geom_jitter()
 ```
 
