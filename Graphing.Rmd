@@ -6,15 +6,21 @@ output: html_document
 ---
 
 ```{r}
-new <- read.csv("mapped_data.csv")
+library(quanteda)
+```
+
+```{r}
+mapped_data <- read.csv("mapped_data.csv")
 transcripts <- readtext("All_Transcripts/*.docx")
 ```
 
 Make quantile graph
-```{r}
-transcripts <- transcripts %>% mutate(nchar = nchar(text))
 
-#yay!!!!
+```{r}
+#make column with number of sentences in a document
+transcripts <- transcripts %>% mutate(nchar = nsentence(text))
+
+#find out the number of sentences in each quantile (25%, 50%, and 75%)
 for(i in 1:nrow(transcripts)){
   nchars = transcripts$nchar[i]
   transcripts$quantile1[i] <- quantile(1:nchars)[2]
@@ -22,13 +28,26 @@ for(i in 1:nrow(transcripts)){
   transcripts$quantile3[i] <- quantile(1:nchars)[4]
 }
 
-#write function that determined id, connects id to a nchar
-#then, for each sentence within that id, give it a relative quantile value
-#case_when
+#get rid of .docx so that we can more easily leftjoin with mapped cluster data
+for(i in 1:nrow(transcripts)){
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], ".docx")
+}
+
+#get rid of text column, we don't need that once we left join!
+transcripts_filt <- transcripts %>% select(doc_id, quantile1, quantile2, quantile3)
 ```
 
 Left join transcripts to new, and then make a column that determines whether a sentence is between two quantiles or not.
 
+```{r}
+quantile_with_mappeddta <- left_join(mapped_data, transcripts_filt, by="doc_id")
+```
+
+```{r}
+#case_when to determine which quantile sentence_id is within
+```
+
+Alternative way to do this:
 ```{r}
 library(tidyr)
 vars <- c("sentence_id", paste0("cluster_", 1:20))
