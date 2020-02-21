@@ -7,7 +7,27 @@ output: html_document
 
 ```{r}
 new <- read.csv("mapped_data.csv")
+transcripts <- readtext("All_Transcripts/*.docx")
 ```
+
+Make quantile graph
+```{r}
+transcripts <- transcripts %>% mutate(nchar = nchar(text))
+
+#yay!!!!
+for(i in 1:nrow(transcripts)){
+  nchars = transcripts$nchar[i]
+  transcripts$quantile1[i] <- quantile(1:nchars)[2]
+  transcripts$quantile2[i] <- quantile(1:nchars)[3]
+  transcripts$quantile3[i] <- quantile(1:nchars)[4]
+}
+
+#write function that determined id, connects id to a nchar
+#then, for each sentence within that id, give it a relative quantile value
+#case_when
+```
+
+Left join transcripts to new, and then make a column that determines whether a sentence is between two quantiles or not.
 
 ```{r}
 library(tidyr)
@@ -28,16 +48,6 @@ long_new <- long_new %>%
   mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5"))))) #case_when would be better here! create 4 new var: quad 1, quad 2, etc.
 ```
 
-
-```{r}
-quantile(1:1297)
-#write function that determined id, connects id to a nchar
-#then, for each sentence within that id, give it a relative quantile value
-#case_when
-```
-
-
-
 ```{r}
 #Made deciles but they're not dependent on the length of an individual interview
 library(ggplot2)
@@ -45,4 +55,3 @@ long_new %>%
   filter(id==3) %>%
   ggplot(aes(x=quadrant, y=value)) + geom_jitter()
 ```
-
