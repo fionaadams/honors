@@ -177,6 +177,6 @@ Not related, but interesting--next steps perhaps??
 ```{r}
 # ex. what are the words most associated with treatment in this dataset? 
 normalized_prob %>%
-    filter(word1 == "harm") %>%
+    filter(word1 == "treatment") %>%
     arrange(-p_together)
 ``` 

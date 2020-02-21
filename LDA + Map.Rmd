@@ -75,13 +75,24 @@ for(i in 1:nrow(new)) {
 }
 }
 
-new[new=="FALSE"]<-NA
+new[new=="FALSE"]<- ""
 ```
 
 ```{r}
 for(i in 1:number_of_clusters){
   ifelse(colnames(new)[10:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[10:ncol(new)][[i]] <- str_replace(new[10:ncol(new)][[i]], "TRUE", paste(i)), "breaks")
 }
+```
+
+```{r}
+columns <- colnames(new)[11:ncol(new)]
+new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = "," )
+```
+
+```{r}
+interviews_together <- new %>%
+  group_by(id) %>%
+  summarise(text=paste(sentence, clusters,collapse=" "))
 ```
 
 ```{r}

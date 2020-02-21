@@ -46,7 +46,7 @@ for(i in 1:nrow(sentences)) {
 }
 }
 
-sentences[sentences=="FALSE"]<-NA
+sentences[sentences=="FALSE"]<-""
 ```
 
 ```{r}
@@ -56,13 +56,12 @@ for(i in 1:number_of_clusters){
 ```
 
 ```{r}
-columns <- colnames(new)[11:ncol(new)]
-new$clusters <- apply( new[ , columns ] , 1 , paste , collapse = "" )
-
-sentences_clusters <- new %>%
-  mutate(clusters = str_trim(clusters)) %>% #this isn't trimming the whitespace well? idk
-  select(id, sentence, clusters)
+columns <- colnames(sentences)[11:ncol(sentences)]
+sentences$clusters <- apply( sentences[ , columns ] , 1 , paste , collapse = "" )
 ```
+
+
+
 
 #To do:
 -map to real interviews!! oops
@@ -70,7 +69,7 @@ sentences_clusters <- new %>%
 -add . after ()
 
 ```{r}
-interviews_together <- sentences_clusters %>%
+interviews_together <- new %>%
   group_by(id) %>%
   summarise(text=paste(sentence, clusters,collapse=" "))
 ```
