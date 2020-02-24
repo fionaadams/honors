@@ -1,0 +1,226 @@
+---
+title: "Clean + LDA + Map"
+author: "Fiona Adams"
+date: "2/24/2020"
+output: html_document
+---
+```{r} 
+library(udpipe)
+library(readtext)
+library(corpus)
+library(dplyr)
+library(stopwords)
+library(stringr)
+library(tidytext)
+library(widyr)
+require(text2vec)
+library(LDAvis)
+```
+
+```{r}
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+
+transcripts <- readtext("All_Transcripts/*.docx")
+
+#annotate model, getting words separated and sentence id where words are taken from
+s <- udpipe_annotate(udmodel_english, transcripts$text[1:2])
+x <- data.frame(s)
+```
+
+```{r}
+'%nin%' <- Negate('%in%')
+#take out stopwords (see stopwords() for exact words gone)
+x_stopwords <- x %>% 
+  mutate(stopword = ifelse(lemma %nin% stopwords(), "NOT.STOPWORD", "STOPWORD"))
+```
+
+```{r}
+#filter out words that aren't useful, ie. numerals, pronouns, etc.
+x_filtered <- x_stopwords %>% 
+  mutate(upos = as.character(upos)) %>%
+  filter(., grepl('ADJ|ADV|INTJ|NOUN|PROPN|VERB', upos)) %>% #explore: adv / intj inclusion
+  subset(., nchar(as.character(lemma)) >= 3) %>%
+  filter(., stopword != "STOPWORD")
+```
+
+```{r}
+# put words back in sentence form, but without the filtered out words
+x_concatenated <- x_filtered %>%
+  select(doc_id, sentence_id, token, upos) %>% 
+  group_by(sentence_id, doc_id) %>% 
+  summarise(text=paste(token,collapse=" ")) %>%
+  filter(text != "Yeah") %>%
+  mutate(nchar=nchar(text))
+
+colnames(x_concatenated) <- c("sentence_id", "doc_id", "sentences", "nchar")
+
+#make doc_id numerical by taking out
+for(i in 1:nrow(x_concatenated)){
+  x_concatenated[1][i,] <- str_remove(x_concatenated[1][i,], "doc")
+}
+```
+
+ADD SKIPGRAMS BACK IN AT A LATER DATE, SEE "CLEAN.RMD" IN ARCHIVES FOR THIS WORK
+```{r}
+# clean dataframe by concatenating words that appear together relatively often
+# https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
+
+#Get skipgram probabilities
+tidy_skipgrams <- x_concatenated %>%
+    unnest_tokens(ngram, sentences, token = "ngrams", n=2) %>%  #sets sliding window of 2
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
+
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+
+#find probability of each word occurring in this corpus
+unigram_probs <- x_concatenated %>%
+    unnest_tokens(word, sentences) %>%
+    count(word, sort = TRUE) %>%
+    mutate(p = n / sum(n))
+
+#normalize it: how often
+normalized_prob <- skipgram_probs %>%
+    filter(n > 20) %>%
+    rename(word1 = item1, word2 = item2) %>%
+    left_join(unigram_probs %>%
+                  select(word1 = word, p1 = p),
+              by = "word1") %>%
+    left_join(unigram_probs %>%
+                  select(word2 = word, p2 = p),
+              by = "word2") %>%
+    mutate(p_together = p / p1 / p2)
+
+# filters just the places where where item1 != item2 and concatenates these words
+normalized_prob <- normalized_prob %>%
+    filter(word1!=word2) %>%
+    mutate(
+        concatenate = paste(word1, word2, sep = "_"),
+        pattern = paste(word1, word2),
+    )
+
+#Concatenate all words that fit the normalized probability threshold?
+#Not working :(((
+# for (i in 1:length(normalized_prob$pattern)) {
+#     x_concatenated$sentences <- str_replace_all(x_concatenated$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
+# }
+```
+
+```{r}
+#get rid of "doc" in doc_id for x_concatenated
+for(i in 1:nrow(x_concatenated)){
+  x_concatenated[2][i,] <- str_remove(x_concatenated[2][i,], "doc")
+}
+
+#add numerical id to transcripts, and get rid of full text inclusion
+transcripts$id <- seq.int(nrow(transcripts))
+transcript_names <- transcripts %>% select(id, doc_id)
+
+#consistent colnames and data types
+colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
+x_concatenated <- x_concatenated %>% mutate(id = as.numeric(id))
+
+#join them together
+final_sentences <- left_join(x_concatenated, transcript_names, by="id")
+
+#get rid of .docx
+for(i in 1:nrow(final_sentences)){
+  final_sentences[5][i,] <- str_remove(final_sentences[5][i,], ".docx")
+}
+```
+
+```{r}
+names <- read.csv("names_descriptions.csv")
+colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
+
+new <- left_join(final_sentences, names, by="doc_id")
+```
+
+#Perform LDA
+```{r echo=FALSE, warning=FALSE, results="hide", message=FALSE}
+require(text2vec)
+
+set.seed(397)
+
+tokenlen = (length(new$sentence)/3) * 2
+
+tokens = new$sentence[1:tokenlen] %>% 
+  tolower %>%
+  word_tokenizer
+
+it = itoken(tokens, ids = new$id[1:tokenlen], progressbar = FALSE)
+v = create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
+
+lda_model = LDA$new(n_topics = 20, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr = 
+  lda_model$fit_transform(x = dtm, n_iter = tokenlen, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = FALSE)
+```
+
+Info on sharing this visualization: https://github.com/cpsievert/LDAvis
+```{r message=FALSE}
+library(LDAvis)
+lda_model$plot()
+```
+
+#Extract cluster words, make only unique words
+```{r}
+words_in_clusters <- lda_model$get_top_words(n = 30, lambda = 0.3)
+words_in_clusters <- as.data.frame(words_in_clusters) %>% 
+  mutate_all(as.character)
+```
+
+#Map the clusters
+```{r}
+check.cluster.i <- function(df, i){
+  listofwords <- words_in_clusters[,i]
+  pattern <- paste(listofwords, collapse = "|")
+  
+  detection <- str_detect(df, pattern, negate = FALSE) %>%
+    as.data.frame() %>% 
+    mutate_all(as.character)
+  
+  suppressWarnings(str_detect(detection, "TRUE"))
+}
+
+
+number_of_clusters <- 20
+
+#wow.. this takes 20 minutes
+for(i in 1:nrow(new)) {
+  for(j in 1:number_of_clusters){
+  new[[paste0("cluster_",j)]][[i]] <- check.cluster.i(new$sentence[[i]], j)
+}
+}
+
+new[new=="FALSE"]<- NA
+```
+
+```{r}
+for(i in 1:number_of_clusters){
+  ifelse(colnames(new)[10:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[10:ncol(new)][[i]] <- str_replace(new[10:ncol(new)][[i]], "TRUE", paste(i)), "breaks")
+}
+```
+ 
+```{r}
+columns <- colnames(new)[10:ncol(new)]
+
+#concatenate cluster values without NAs
+new <- new %>% mutate(clusters = "")
+new$clusters <- apply(new[, cols], 1, function(x) toString(na.omit(x)))
+
+new <- new %>% mutate(ifelse(clusters == "", NA, paste0("(", clusters, ")")))
+
+#quick bug fix to deal with at a later date!! replacing (1,2,3,) with (1,2,3)
+# str_replace_all(new, ",\\)", "\\)")
+```
+
+
