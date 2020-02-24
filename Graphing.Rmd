@@ -14,7 +14,7 @@ mapped_data <- read.csv("mapped_data.csv")
 transcripts <- readtext("All_Transcripts/*.docx")
 ```
 
-Make quantile graph
+Make quantile graph:
 
 ```{r}
 #make column with number of sentences in a document
@@ -45,6 +45,18 @@ quantile_with_mappeddta <- left_join(mapped_data, transcripts_filt, by="doc_id")
 
 ```{r}
 #case_when to determine which quantile sentence_id is within
+
+testing123 <- quantile_with_mappeddta %>%
+  select(sentence_id:description, clusters, quantile1, quantile2, quantile3) %>%
+  mutate(
+    sent_quantile = case_when(
+      sentence_id <= quantile1 ~ "quantile1",
+      sentence_id <= quantile2 ~ "quantile2",
+      sentence_id <= quantile3 ~ "quantile3",
+      sentence_id > quantile3 ~ "quantile4",
+    )
+  ) %>%
+  select(doc_id, sentence_id, sent_quantile)
 ```
 
 Alternative way to do this:

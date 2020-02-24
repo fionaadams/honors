@@ -9,7 +9,6 @@ output: html_document
 library(udpipe)
 library(readtext)
 library(corpus)
-library(plyr)
 library(dplyr)
 library(stopwords)
 library(stringr)
@@ -56,62 +55,65 @@ x_concatenated <- x_filtered %>%
   select(doc_id, sentence_id, token, upos) %>% 
   group_by(sentence_id, doc_id) %>% 
   summarise(text=paste(token,collapse=" ")) %>%
-  filter(text != "Yeah")
+  filter(text != "Yeah") %>%
+  mutate(nchar=nchar(text))
+
+colnames(x_concatenated) <- c("sentence_id", "doc_id", "sentences", "nchar")
+
+#make doc_id numerical
+for(i in 1:nrow(x_concatenated)){
+  x_concatenated[1][i,] <- str_remove(x_concatenated[1][i,], "doc")
+}
 ```
 
 ADD SKIPGRAMS BACK IN AT A LATER DATE, SEE "CLEAN.RMD" IN ARCHIVES FOR THIS WORK
-<!-- ```{r} -->
-<!-- # clean dataframe by concatenating words that appear together relatively often -->
-<!-- # https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/ -->
+```{r}
+# clean dataframe by concatenating words that appear together relatively often
+# https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
 
-<!-- #Get skipgram probabilities -->
-<!-- tidy_skipgrams <- x_concatenated %>% -->
-<!--     unnest_tokens(ngram, text, token = "ngrams", n=2) %>% #sets sliding window of 2 -->
-<!--     mutate(skipgramID = row_number()) %>% #set row number as the ID -->
-<!--     unnest_tokens(word, ngram) -->
+#Get skipgram probabilities
+tidy_skipgrams <- x_concatenated %>%
+    unnest_tokens(ngram, sentences, token = "ngrams", n=2) %>%  #sets sliding window of 2
+    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    unnest_tokens(word, ngram)
 
-<!-- #using counts and proportions, finds skipgram probabilities -->
-<!-- skipgram_probs <- tidy_skipgrams %>% -->
-<!--     pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>% -->
-<!--     mutate(p = n / sum(n)) -->
+#using counts and proportions, finds skipgram probabilities
+skipgram_probs <- tidy_skipgrams %>%
+    pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+    mutate(p = n / sum(n))
 
-<!-- #find probability of each word occurring in this corpus -->
-<!-- unigram_probs <- x_concatenated %>% -->
-<!--     unnest_tokens(word, text) %>% -->
-<!--     count(word, sort = TRUE) %>% -->
-<!--     mutate(p = n / sum(n)) -->
+#find probability of each word occurring in this corpus
+unigram_probs <- x_concatenated %>%
+    unnest_tokens(word, sentences) %>%
+    count(word, sort = TRUE) %>%
+    mutate(p = n / sum(n))
 
-<!-- #normalize it: how often  -->
-<!-- normalized_prob <- skipgram_probs %>% -->
-<!--     filter(n > 20) %>% -->
-<!--     rename(word1 = item1, word2 = item2) %>% -->
-<!--     left_join(unigram_probs %>% -->
-<!--                   select(word1 = word, p1 = p), -->
-<!--               by = "word1") %>% -->
-<!--     left_join(unigram_probs %>% -->
-<!--                   select(word2 = word, p2 = p), -->
-<!--               by = "word2") %>% -->
-<!--     mutate(p_together = p / p1 / p2) -->
+#normalize it: how often
+normalized_prob <- skipgram_probs %>%
+    filter(n > 20) %>%
+    rename(word1 = item1, word2 = item2) %>%
+    left_join(unigram_probs %>%
+                  select(word1 = word, p1 = p),
+              by = "word1") %>%
+    left_join(unigram_probs %>%
+                  select(word2 = word, p2 = p),
+              by = "word2") %>%
+    mutate(p_together = p / p1 / p2)
 
-<!-- # filters just the places where where item1 != item2 and concatenates these words -->
-<!-- normalized_prob <- normalized_prob %>% -->
-<!--     dplyr::filter(word1!=word2) %>% -->
-<!--     mutate( -->
-<!--         concatenate = paste(word1, word2, sep = "_"), -->
-<!--         pattern = paste(word1, word2), -->
-<!--     ) -->
+# filters just the places where where item1 != item2 and concatenates these words
+normalized_prob <- normalized_prob %>%
+    filter(word1!=word2) %>%
+    mutate(
+        concatenate = paste(word1, word2, sep = "_"),
+        pattern = paste(word1, word2),
+    )
 
-<!-- x_concatenated <- x_concatenated %>% -->
-<!--     mutate( -->
-<!--         X = NULL, -->
-<!--         text = as.character(text) -->
-<!--     ) -->
-
-<!-- #Concatenate all words that fit the normalized probability threshold? -->
-<!-- for (i in 1:length(normalized_prob$pattern)) { -->
-<!--     x_concatenated$text <- str_replace_all(x_concatenated$text, normalized_prob$pattern[i], normalized_prob$concatenate[i]) -->
-<!-- } -->
-<!-- ``` -->
+#Concatenate all words that fit the normalized probability threshold?
+#Not working :(((
+# for (i in 1:length(normalized_prob$pattern)) {
+#     x_concatenated$sentences <- str_replace_all(x_concatenated$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
+# }
+```
 
 ```{r}
 #get rid of "doc" in doc_id for x_concatenated
@@ -124,7 +126,7 @@ transcripts$id <- seq.int(nrow(transcripts))
 transcript_names <- transcripts %>% select(id, doc_id)
 
 #consistent colnames and data types
-colnames(x_concatenated) <- c("sentence_id", "id", "sentence")
+colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
 x_concatenated <- x_concatenated %>% mutate(id = as.numeric(id))
 
 #join them together
@@ -132,7 +134,7 @@ final_sentences <- left_join(x_concatenated, transcript_names, by="id")
 
 #get rid of .docx
 for(i in 1:nrow(final_sentences)){
-  final_sentences[4][i,] <- str_remove(final_sentences[4][i,], ".docx")
+  final_sentences[5][i,] <- str_remove(final_sentences[5][i,], ".docx")
 }
 ```
 

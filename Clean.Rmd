@@ -122,19 +122,19 @@ for(i in 1:nrow(final)) {
 #Get skipgram probabilities
 tidy_skipgrams <- final %>%
     unnest_tokens(ngram, sentences, token = "ngrams", n=2) %>% #sets sliding window of 2
-    mutate(skipgramID = row_number()) %>% #set row number as the ID
+    dplyr::mutate(skipgramID = row_number()) %>% #set row number as the ID
     unnest_tokens(word, ngram)
 
 #using counts and proportions, finds skipgram probabilities
 skipgram_probs <- tidy_skipgrams %>%
     pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
-    mutate(p = n / sum(n))
+    dplyr::mutate(p = n / sum(n))
 
 #find probability of each word occurring in this corpus
 unigram_probs <- final %>%
     unnest_tokens(word, sentences) %>%
     count(word, sort = TRUE) %>%
-    mutate(p = n / sum(n))
+    dplyr::mutate(p = n / sum(n))
 
 #normalize it: how often 
 normalized_prob <- skipgram_probs %>%
