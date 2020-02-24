@@ -55,7 +55,7 @@ x_concatenated <- x_filtered %>%
 
 colnames(x_concatenated) <- c("sentence_id", "doc_id", "sentences", "nchar")
 
-#make doc_id numerical by taking out
+#make doc_id numerical by taking out doc
 for(i in 1:nrow(x_concatenated)){
   x_concatenated[1][i,] <- str_remove(x_concatenated[1][i,], "doc")
 }
@@ -217,10 +217,36 @@ columns <- colnames(new)[10:ncol(new)]
 new <- new %>% mutate(clusters = "")
 new$clusters <- apply(new[, cols], 1, function(x) toString(na.omit(x)))
 
-new <- new %>% mutate(ifelse(clusters == "", NA, paste0("(", clusters, ")")))
+new <- new %>% mutate(ifelse(clusters == "", NA, paste0(" (", clusters, ")")))
 
 #quick bug fix to deal with at a later date!! replacing (1,2,3,) with (1,2,3)
 # str_replace_all(new, ",\\)", "\\)")
 ```
 
+Mapping to filtered sentences:
+```{r}
+interviews_together <- new %>%
+  group_by(id) %>%
+  summarise(text=paste(sentence, clusters, collapse=" "))
+```
+
+
+Mapping to "real" sentences:
+
+```{r}
+x_full <- x %>% select(doc_id, sentence_id, sentence)
+colnames(x_full) <- c("doc_id", "sentence_id", "full_sentence")
+
+#make doc_id numerical by taking out doc
+for(i in 1:nrow(x_full)){
+  x_full[1][i,] <- str_remove(x_full[1][i,], "doc")
+}
+
+x_full <- x_full %>% mutate(doc_id = as.numeric(doc_id), sentence_id = as.numeric(sentence_id))
+new <- new %>%  mutate(doc_id = as.numeric(doc_id), sentence_id = as.numeric(sentence_id))
+```
+
+```{r}
+left_join(new, x_full, by=c("doc_id", "sentence_id"))
+```
 
