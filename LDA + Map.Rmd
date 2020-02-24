@@ -80,7 +80,7 @@ new[new=="FALSE"]<- ""
 
 ```{r}
 for(i in 1:number_of_clusters){
-  ifelse(colnames(new)[10:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[10:ncol(new)][[i]] <- str_replace(new[10:ncol(new)][[i]], "TRUE", paste(i)), "breaks")
+  ifelse(colnames(new)[11:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[11:ncol(new)][[i]] <- str_replace(new[11:ncol(new)][[i]], "TRUE", paste(i)), "breaks")
 }
 ```
  
