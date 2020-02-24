@@ -46,43 +46,59 @@ quantile_with_mappeddta <- left_join(mapped_data, transcripts_filt, by="doc_id")
 ```{r}
 #case_when to determine which quantile sentence_id is within
 
-testing123 <- quantile_with_mappeddta %>%
-  select(sentence_id:description, clusters, quantile1, quantile2, quantile3) %>%
+sentence_quantiles <- quantile_with_mappeddta %>%
   mutate(
-    sent_quantile = case_when(
+    quantile = case_when(
       sentence_id <= quantile1 ~ "quantile1",
       sentence_id <= quantile2 ~ "quantile2",
       sentence_id <= quantile3 ~ "quantile3",
       sentence_id > quantile3 ~ "quantile4",
     )
-  ) %>%
-  select(doc_id, sentence_id, sent_quantile)
+  )
 ```
 
-Alternative way to do this:
 ```{r}
 library(tidyr)
-vars <- c("sentence_id", paste0("cluster_", 1:20))
-#work on this! make long for better EDA stuffs
-long_new <- pivot_longer(new, cols = starts_with("cluster"), names_to="cluster")
-
-median <- median(long_new$sentence_id)
-
-# 0 --> 164: First section
-# 164 --> 328: Second section
-# 328 --> 656: Third section
-# 656 --> 984: Fourth section
-# 984 --> 1297: Fifth section
-long_new <- long_new %>%
-  filter(!is.na(value)) %>%
-  select(id, sentence_id, doc_id, description, family_experience, treatment_prof, personal_experience, value) %>%
-  mutate(quadrant = ifelse(sentence_id<=median/2, "Quadrant 1", ifelse(sentence_id <=median, "Quadrant 2", ifelse(sentence_id <= median*2, "Quadrant 3", ifelse(sentence_id <= median*3, "Quadrant 4", "Quadrant 5"))))) #case_when would be better here! create 4 new var: quad 1, quad 2, etc.
+long_new <- sentence_quantiles %>% 
+  select(-clusters) %>% 
+  pivot_longer(., cols = starts_with("cluster"), names_to="cluster") %>% 
+  filter(!is.na(value))
 ```
 
 ```{r}
-#Made deciles but they're not dependent on the length of an individual interview
+# probability of a topic being in a quadrant
+# how to do this? count of topic in each quadrant
+# divide by count of topic overall
+# get probabilities, map these on y axis?
+
+cluster_quantile_total <- long_new %>%
+  group_by(cluster, quantile) %>% 
+  tally() %>%
+  rename(clust_quant=n)
+
+cluster_total <- long_new %>%
+  group_by(cluster) %>%
+  tally() %>%
+  rename(clust = n)
+
+quantile_probs <- left_join(cluster_quantile_total, cluster_total, by="cluster")
+
+#p = probability of a topic (cluster) being in a given quantile
+quantile_probs <- quantile_probs %>% mutate(p = clust_quant/clust)
+```
+
+```{r}
 library(ggplot2)
+
+#what do we want?
+quantile_probs %>% 
+  ggplot(aes(x=quantile, y=p)) + geom_jitter()
+
 long_new %>% 
-  filter(id==3) %>%
-  ggplot(aes(x=quadrant, y=value)) + geom_jitter()
+  filter(id==1) %>%
+  ggplot(aes(x=quantile, y=value)) + geom_jitter()
+
+long_new %>% 
+  filter(id==2) %>%
+  ggplot(aes(x=quantile, y=value)) + geom_jitter()
 ```
