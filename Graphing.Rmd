@@ -23,9 +23,9 @@ transcripts <- transcripts %>% mutate(nchar = nsentence(text))
 #find out the number of sentences in each quantile (25%, 50%, and 75%)
 for(i in 1:nrow(transcripts)){
   nchars = transcripts$nchar[i]
-  transcripts$quantile1[i] <- quantile(1:nchars)[2]
-  transcripts$quantile2[i] <- quantile(1:nchars)[3]
-  transcripts$quantile3[i] <- quantile(1:nchars)[4]
+  transcripts$quantile1[i] <- quantile(1:nchars)[2] #25%
+  transcripts$quantile2[i] <- quantile(1:nchars)[3] #50%
+  transcripts$quantile3[i] <- quantile(1:nchars)[4] #75% 
 }
 
 #get rid of .docx so that we can more easily leftjoin with mapped cluster data
@@ -49,10 +49,10 @@ quantile_with_mappeddta <- left_join(mapped_data, transcripts_filt, by="doc_id")
 sentence_quantiles <- quantile_with_mappeddta %>%
   mutate(
     quantile = case_when(
-      sentence_id <= quantile1 ~ "quantile1",
-      sentence_id <= quantile2 ~ "quantile2",
-      sentence_id <= quantile3 ~ "quantile3",
-      sentence_id > quantile3 ~ "quantile4",
+      sentence_id <= quantile1 ~ "quantile1", #less than 25%
+      sentence_id <= quantile2 & sentence_id > quantile1 ~ "quantile2", #between 25 and 50%
+      sentence_id <= quantile3 & sentence_id > quantile2 ~ "quantile3", #between 50 and 75%
+      sentence_id > quantile3 ~ "quantile4", #between 75 and 100%
     )
   )
 ```
@@ -66,10 +66,8 @@ long_new <- sentence_quantiles %>%
 ```
 
 ```{r}
-# probability of a topic being in a quadrant
-# how to do this? count of topic in each quadrant
-# divide by count of topic overall
-# get probabilities, map these on y axis?
+#this gives us:
+# of all of the sentences in topic 1, where are they?
 
 cluster_quantile_total <- long_new %>%
   group_by(cluster, quantile) %>% 
@@ -88,17 +86,32 @@ quantile_probs <- quantile_probs %>% mutate(p = clust_quant/clust)
 ```
 
 ```{r}
+# how many sentences in topic i are in quartile i / total # of sentences in quartile 1
+# of all the sentences in quartile 1, what fraction belong in topic 1, 2, 3, ..20 
+
+cluster_quantile_total <- long_new %>%
+  group_by(cluster, quantile) %>% 
+  tally() %>%
+  rename(clust_quant=n)
+
+#how many sentences are in each quantile?
+quantile_total <- sentence_quantiles %>%
+  group_by(quantile) %>%
+  tally()
+
+quantile_probs <- left_join(cluster_quantile_total, quantile_total, by="quantile")
+
+#p = probability of a topic (cluster) being in a given quantile
+quantile_probs <- quantile_probs %>% mutate(p = clust_quant/n)
+```
+
+
+```{r}
 library(ggplot2)
 
 #what do we want?
+#Pull out the "meaningful" clusters and only display those
 quantile_probs %>% 
-  ggplot(aes(x=quantile, y=p)) + geom_jitter()
+  ggplot(aes(x=quantile, y=p)) + geom_col(aes(fill=factor(cluster))) + facet_grid(~cluster)
 
-long_new %>% 
-  filter(id==1) %>%
-  ggplot(aes(x=quantile, y=value)) + geom_jitter()
-
-long_new %>% 
-  filter(id==2) %>%
-  ggplot(aes(x=quantile, y=value)) + geom_jitter()
 ```

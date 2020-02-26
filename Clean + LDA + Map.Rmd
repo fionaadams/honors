@@ -105,9 +105,9 @@ normalized_prob <- normalized_prob %>%
 
 #Concatenate all words that fit the normalized probability threshold?
 #Not working :(((
-# for (i in 1:length(normalized_prob$pattern)) {
-#     x_concatenated$sentences <- str_replace_all(x_concatenated$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
-# }
+for (i in 1:length(normalized_prob$pattern)) {
+    x_concatenated$sentences <- str_replace_all(x_concatenated$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
+}
 ```
 
 ```{r}
