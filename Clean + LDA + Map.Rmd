@@ -24,6 +24,29 @@ udmodel_english <- udpipe_load_model(ud_model$file_model)
 transcripts <- readtext("All_Transcripts/*.docx")
 ```
 
+```{r}
+#add numerical id to transcripts, and get rid of full text inclusion
+transcripts$id <- seq.int(nrow(transcripts))
+transcripts_names <- transcripts %>% mutate(id = paste0("doc",id))
+
+#get rid of .docx
+for(i in 1:nrow(transcripts_names)){
+  transcripts_names[1][i,] <- str_remove(transcripts_names[1][i,], ".docx")
+}
+
+names <- read.csv("names_descriptions.csv")
+colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
+
+transcripts_final <- left_join(transcripts_names, names, by="doc_id")
+```
+
+Make separate dataframes for each "type of person"
+```{r}
+transcripts_familyexp <- transcripts_final %>% filter(family_experience==TRUE)
+transcripts_treatment <- transcripts_final %>% filter(treatment_prof==TRUE)
+transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
+```
+
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
@@ -106,28 +129,15 @@ if (nrow(normalized_prob)>=10){
 }
 ```
 
+Put x_concatenated back together with the transcripts, just to have that extra info there
 ```{r}
-#add numerical id to transcripts, and get rid of full text inclusion
-transcripts$id <- seq.int(nrow(transcripts))
-transcript_names <- transcripts %>% select(id, doc_id) %>% mutate(id = paste0("doc",id))
-
-#get rid of .docx
-for(i in 1:nrow(transcript_names)){
-  transcript_names[2][i,] <- str_remove(transcript_names[2][i,], ".docx")
-}
-
 #consistent colnames and data types
 colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
 
+transcripts_concatenate <- transcripts_final %>% select(-text)
+
 #join them together
-final_sentences <- left_join(x_concatenated, transcript_names, by="id")
-```
-
-```{r}
-names <- read.csv("names_descriptions.csv")
-colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
-
-new <- left_join(final_sentences, names, by="doc_id")
+final_sentences <- left_join(x_concatenated, transcripts_concatenate, by="id")
 ```
 
 #Perform LDA
