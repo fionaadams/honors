@@ -62,7 +62,7 @@ colnames(x_concatenated) <- c("sentence_id", "doc_id", "sentences", "nchar")
 
 #make doc_id numerical
 for(i in 1:nrow(x_concatenated)){
-  x_concatenated[1][i,] <- str_remove(x_concatenated[1][i,], "doc")
+  x_concatenated[2][i,] <- str_remove(x_concatenated[2][i,], "doc")
 }
 ```
 

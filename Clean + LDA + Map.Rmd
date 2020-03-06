@@ -22,12 +22,16 @@ ud_model <- udpipe_download_model(language = "english")
 udmodel_english <- udpipe_load_model(ud_model$file_model)
 
 transcripts <- readtext("All_Transcripts/*.docx")
+```
 
+Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
+```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts$text[1:2])
+s <- udpipe_annotate(udmodel_english, transcripts$text[1:10])
 x <- data.frame(s)
 ```
 
+Take out Stopwords
 ```{r}
 '%nin%' <- Negate('%in%')
 #take out stopwords (see stopwords() for exact words gone)
@@ -35,6 +39,7 @@ x_stopwords <- x %>%
   mutate(stopword = ifelse(lemma %nin% stopwords(), "NOT.STOPWORD", "STOPWORD"))
 ```
 
+Filter Out Not Useful Parts of Speech
 ```{r}
 #filter out words that aren't useful, ie. numerals, pronouns, etc.
 x_filtered <- x_stopwords %>% 
@@ -61,7 +66,7 @@ for(i in 1:nrow(x_concatenated)){
 }
 ```
 
-ADD SKIPGRAMS BACK IN AT A LATER DATE, SEE "CLEAN.RMD" IN ARCHIVES FOR THIS WORK
+Concatenate Skipgrams (Normalized)
 ```{r}
 # clean dataframe by concatenating words that appear together relatively often
 # https://multithreaded.stitchfix.com/blog/2017/10/18/stop-using-word2vec/
@@ -85,7 +90,6 @@ unigram_probs <- x_concatenated %>%
 
 #normalize it: how often
 normalized_prob <- skipgram_probs %>%
-    filter(n > 20) %>%
     rename(word1 = item1, word2 = item2) %>%
     left_join(unigram_probs %>%
                   select(word1 = word, p1 = p),
@@ -93,15 +97,14 @@ normalized_prob <- skipgram_probs %>%
     left_join(unigram_probs %>%
                   select(word2 = word, p2 = p),
               by = "word2") %>%
-    mutate(p_together = p / p1 / p2)
-
-# filters just the places where where item1 != item2 and concatenates these words
-normalized_prob <- normalized_prob %>%
-    filter(word1!=word2) %>%
+    mutate(p_together = p / p1 / p2) %>% #When this number is high (greater than 1), the two words are associated with each other, likely to occur together. When this number is low (less than 1), the two words are not associated with each other, unlikely to occur together.
+    # filter(word1!=word2, p_together > 1) %>%
     mutate(
         concatenate = paste(word1, word2, sep = "_"),
         pattern = paste(word1, word2),
-    )
+    ) %>%
+    select(concatenate, pattern) %>%
+    distinct()
 
 #Concatenate all words that fit the normalized probability threshold?
 #Not working :(((
