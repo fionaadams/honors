@@ -27,7 +27,7 @@ transcripts <- readtext("All_Transcripts/*.docx")
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts$text[1:10])
+s <- udpipe_annotate(udmodel_english, transcripts$text)
 x <- data.frame(s)
 ```
 
@@ -59,11 +59,6 @@ x_concatenated <- x_filtered %>%
   mutate(nchar=nchar(text))
 
 colnames(x_concatenated) <- c("sentence_id", "doc_id", "sentences", "nchar")
-
-#make doc_id numerical by taking out doc
-for(i in 1:nrow(x_concatenated)){
-  x_concatenated[1][i,] <- str_remove(x_concatenated[1][i,], "doc")
-}
 ```
 
 Concatenate Skipgrams (Normalized)
@@ -90,6 +85,7 @@ unigram_probs <- x_concatenated %>%
 
 #normalize it: how often
 normalized_prob <- skipgram_probs %>%
+    filter(n > 9) %>%
     rename(word1 = item1, word2 = item2) %>%
     left_join(unigram_probs %>%
                   select(word1 = word, p1 = p),
@@ -97,43 +93,34 @@ normalized_prob <- skipgram_probs %>%
     left_join(unigram_probs %>%
                   select(word2 = word, p2 = p),
               by = "word2") %>%
-    mutate(p_together = p / p1 / p2) %>% #When this number is high (greater than 1), the two words are associated with each other, likely to occur together. When this number is low (less than 1), the two words are not associated with each other, unlikely to occur together.
-    # filter(word1!=word2, p_together > 1) %>%
-    mutate(
-        concatenate = paste(word1, word2, sep = "_"),
-        pattern = paste(word1, word2),
-    ) %>%
-    select(concatenate, pattern) %>%
-    distinct()
+    mutate(p_together = p / p1 / p2) %>%
+    mutate(pattern = paste(word1, word2, sep=" "), concatenate=paste(word1, word2, sep="_")) 
 
-#Concatenate all words that fit the normalized probability threshold?
-#Not working :(((
-for (i in 1:length(normalized_prob$pattern)) {
+#Concatenate all words that fit the normalized probability threshold, if there are more than 10 together
+if (nrow(normalized_prob)>=10){
+    for(i in 1:length(normalized_prob$pattern)) {
     x_concatenated$sentences <- str_replace_all(x_concatenated$sentences, normalized_prob$pattern[i], normalized_prob$concatenate[i])
+}
+} else {
+    print ("No words to concatenate")
 }
 ```
 
 ```{r}
-#get rid of "doc" in doc_id for x_concatenated
-for(i in 1:nrow(x_concatenated)){
-  x_concatenated[2][i,] <- str_remove(x_concatenated[2][i,], "doc")
-}
-
 #add numerical id to transcripts, and get rid of full text inclusion
 transcripts$id <- seq.int(nrow(transcripts))
-transcript_names <- transcripts %>% select(id, doc_id)
+transcript_names <- transcripts %>% select(id, doc_id) %>% mutate(id = paste0("doc",id))
+
+#get rid of .docx
+for(i in 1:nrow(transcript_names)){
+  transcript_names[2][i,] <- str_remove(transcript_names[2][i,], ".docx")
+}
 
 #consistent colnames and data types
 colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
-x_concatenated <- x_concatenated %>% mutate(id = as.numeric(id))
 
 #join them together
 final_sentences <- left_join(x_concatenated, transcript_names, by="id")
-
-#get rid of .docx
-for(i in 1:nrow(final_sentences)){
-  final_sentences[5][i,] <- str_remove(final_sentences[5][i,], ".docx")
-}
 ```
 
 ```{r}
@@ -218,38 +205,42 @@ columns <- colnames(new)[10:ncol(new)]
 
 #concatenate cluster values without NAs
 new <- new %>% mutate(clusters = "")
-new$clusters <- apply(new[, cols], 1, function(x) toString(na.omit(x)))
+new$clusters <- apply(new[, columns], 1, function(x) toString(na.omit(x)))
+```
 
+TO ASK LESLIE: R IS NOT REGISTERING THE PARENTHESES, SO WHEN IT'S MAPPED BACK IT DOESN'T LOOK SO NICE. HOW DO WE FIX THIS? HERE IS THE CODE:
+```{r}
 new <- new %>% mutate(ifelse(clusters == "", NA, paste0(" (", clusters, ")")))
 
 #quick bug fix to deal with at a later date!! replacing (1,2,3,) with (1,2,3)
-# str_replace_all(new, ",\\)", "\\)")
+#this doesn't give an error, but does work? confusing life lol
+#ASK LESLIE!
+# for(i in 1:nrow(new)){
+#   new$clusters[i] <- str_replace(new$clusters[i], ",\\)", "\\)")
+# }
 ```
 
 Mapping to filtered sentences:
 ```{r}
 interviews_together <- new %>%
-  group_by(id) %>%
+  group_by(doc_id) %>%
   summarise(text=paste(sentence, clusters, collapse=" "))
 ```
 
-
 Mapping to "real" sentences:
-
 ```{r}
-x_full <- x %>% select(doc_id, sentence_id, sentence)
-colnames(x_full) <- c("doc_id", "sentence_id", "full_sentence")
-
-#make doc_id numerical by taking out doc
-for(i in 1:nrow(x_full)){
-  x_full[1][i,] <- str_remove(x_full[1][i,], "doc")
-}
-
-x_full <- x_full %>% mutate(doc_id = as.numeric(doc_id), sentence_id = as.numeric(sentence_id))
-new <- new %>%  mutate(doc_id = as.numeric(doc_id), sentence_id = as.numeric(sentence_id))
+x_full <- x %>% select(doc_id, sentence_id, sentence) %>% unique()
+colnames(x_full) <- c("id", "sentence_id", "full_sentence")
 ```
 
 ```{r}
-left_join(new, x_full, by=c("doc_id", "sentence_id"))
+full_new <- left_join(new, x_full, by=c("id", "sentence_id"))
+
+full_new <- full_new %>% select(full_sentence, clusters, doc_id, sentence_id)
 ```
 
+```{r}
+full_interviews_together <- full_new %>%
+  group_by(doc_id) %>%
+  summarise(text=paste(full_sentence, clusters, collapse=" "))
+```
