@@ -25,13 +25,9 @@ transcripts <- readtext("All_Transcripts/*.docx")
 ```
 
 ```{r}
-#add numerical id to transcripts, and get rid of full text inclusion
-transcripts$id <- seq.int(nrow(transcripts))
-transcripts_names <- transcripts %>% mutate(id = paste0("doc",id))
-
 #get rid of .docx
-for(i in 1:nrow(transcripts_names)){
-  transcripts_names[1][i,] <- str_remove(transcripts_names[1][i,], ".docx")
+for(i in 1:nrow(transcripts)){
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], ".docx")
 }
 
 names <- read.csv("names_descriptions.csv")
@@ -50,7 +46,7 @@ transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts$text)
+s <- udpipe_annotate(udmodel_english, transcripts$text[1])
 x <- data.frame(s)
 ```
 
@@ -129,15 +125,17 @@ if (nrow(normalized_prob)>=10){
 }
 ```
 
-Put x_concatenated back together with the transcripts, just to have that extra info there
+Add doc_id (the id with the actual name) to x_concatenated
 ```{r}
+#add doc_id to transcripts
+transcripts$id <- seq.int(nrow(transcripts))
+transcripts_id <- transcripts %>% mutate(id = paste0("doc",id)) %>% select(-text)
+
 #consistent colnames and data types
 colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
 
-transcripts_concatenate <- transcripts_final %>% select(-text)
-
 #join them together
-final_sentences <- left_join(x_concatenated, transcripts_concatenate, by="id")
+final_sentences <- left_join(x_concatenated, transcripts_id, by="id")
 ```
 
 #Perform LDA
