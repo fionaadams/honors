@@ -255,3 +255,5 @@ full_interviews_together <- full_new %>%
   group_by(doc_id) %>%
   summarise(text=paste(full_sentence, clusters, collapse=" "))
 ```
+
+Add here: write to table, see info in personal exp

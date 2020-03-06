@@ -254,6 +254,7 @@ full_interviews_together <- full_new %>%
 ```
 
 ```{r}
-write.csv(full_interviews_together, "treatmentprof_mapped_interviews")
+write.csv(full_interviews_together, "treatmentprof_mapped_interviews.csv")
 ```
 
+Add here: write to table, see info in personal exp
