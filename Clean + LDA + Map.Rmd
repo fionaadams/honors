@@ -33,7 +33,7 @@ for(i in 1:nrow(transcripts)){
 names <- read.csv("names_descriptions.csv")
 colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
 
-transcripts_final <- left_join(transcripts_names, names, by="doc_id")
+transcripts_final <- left_join(transcripts, names, by="doc_id")
 ```
 
 Make separate dataframes for each "type of person"
@@ -46,7 +46,7 @@ transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts$text[1])
+s <- udpipe_annotate(udmodel_english, transcripts_personal$text[1])
 x <- data.frame(s)
 ```
 
@@ -104,7 +104,7 @@ unigram_probs <- x_concatenated %>%
 
 #normalize it: how often
 normalized_prob <- skipgram_probs %>%
-    filter(n > 9) %>%
+    filter(n > 20) %>%
     rename(word1 = item1, word2 = item2) %>%
     left_join(unigram_probs %>%
                   select(word1 = word, p1 = p),
@@ -220,12 +220,7 @@ TO ASK LESLIE: R IS NOT REGISTERING THE PARENTHESES, SO WHEN IT'S MAPPED BACK IT
 ```{r}
 new <- new %>% mutate(ifelse(clusters == "", NA, paste0(" (", clusters, ")")))
 
-#quick bug fix to deal with at a later date!! replacing (1,2,3,) with (1,2,3)
-#this doesn't give an error, but does work? confusing life lol
-#ASK LESLIE!
-# for(i in 1:nrow(new)){
-#   new$clusters[i] <- str_replace(new$clusters[i], ",\\)", "\\)")
-# }
+new <- new %>% mutate(clusters = ifelse(clusters == "", "", paste0("<span style=\"color:red\">", clusters, "</span>")))
 ```
 
 Mapping to filtered sentences:
@@ -252,3 +247,16 @@ full_interviews_together <- full_new %>%
   group_by(doc_id) %>%
   summarise(text=paste(full_sentence, clusters, collapse=" "))
 ```
+
+```{r}
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "AS:", "<br> AS: ")
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "GA:", "<br> GA: ")
+
+writeLines(full_interviews_together$text[1], "test.rmd")
+```
+
+
+
+
+
+

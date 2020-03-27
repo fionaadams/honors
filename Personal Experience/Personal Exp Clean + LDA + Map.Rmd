@@ -46,7 +46,7 @@ transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts_personal$text)
+s <- udpipe_annotate(udmodel_english, transcripts_familyexp$text[1:2])
 x <- data.frame(s)
 ```
 
@@ -159,7 +159,11 @@ v = create_vocabulary(it) %>%
 vectorizer = vocab_vectorizer(v)
 dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
 
+
+#hyperparameters
 lda_model = LDA$new(n_topics = 20, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+
+
 doc_topic_distr = 
   lda_model$fit_transform(x = dtm, n_iter = tokenlen, 
                           convergence_tol = 0.001, n_check_convergence = 25, 
@@ -225,14 +229,9 @@ new$clusters <- apply(new[, columns], 1, function(x) toString(na.omit(x)))
 
 TO ASK LESLIE: R IS NOT REGISTERING THE PARENTHESES, SO WHEN IT'S MAPPED BACK IT DOESN'T LOOK SO NICE. HOW DO WE FIX THIS? HERE IS THE CODE:
 ```{r}
-new <- new %>% mutate(ifelse(clusters == "", NA, paste0(" (", clusters, ")")))
+# new <- new %>% mutate(ifelse(clusters == "", "", paste0(" (", clusters, ")")))
 
-#quick bug fix to deal with at a later date!! replacing (1,2,3,) with (1,2,3)
-#this doesn't give an error, but does work? confusing life lol
-#ASK LESLIE!
-# for(i in 1:nrow(new)){
-#   new$clusters[i] <- str_replace(new$clusters[i], ",\\)", "\\)")
-# }
+new <- new %>% mutate(clusters = ifelse(clusters == "", "", paste0("<span style=\"color:red\">", clusters, "</span>")))
 ```
 
 Mapping to full sentences:
@@ -253,14 +252,10 @@ full_interviews_together <- full_new %>%
   summarise(text=paste(full_sentence, clusters, collapse=" "))
 ```
 
-This csv doesn't work well because there are commas in the interview, so writing to csv gets all jumbled!
 ```{r}
-write.csv(full_interviews_together, "personalexp_mapped_interviews.csv")
-```
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "AS:", "<br> AS: ")
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "GA:", "<br> GA: ")
 
-So, this writes it to a table! Future steps is to make this into a for loop that writes out a bunch of .txt files all named after the doc_id. Some good info here: https://stackoverflow.com/questions/7033699/write-many-files-in-a-for-loop
-```{r}
-write.table(full_interviews_together$text[1], "test.txt")
+writeLines(full_interviews_together$text[1], "test.rmd")
 ```
-
 
