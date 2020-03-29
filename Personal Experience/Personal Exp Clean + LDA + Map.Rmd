@@ -211,7 +211,12 @@ full_interviews_together <- full_new %>%
 ```
 
 ```{r}
-writeLines(full_interviews_together$text[1], "test.rmd")
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "AS:", "<br> AS: ")
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "LB:", "<br> LB: ")
+```
+
+```{r}
+writeLines(full_interviews_together$text[1], "new_map.rmd")
 ```
 
 VISUALIZE THE WORDS:
