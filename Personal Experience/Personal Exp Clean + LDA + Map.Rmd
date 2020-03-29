@@ -46,7 +46,7 @@ transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts_familyexp$text[1:2])
+s <- udpipe_annotate(udmodel_english, transcripts_familyexp$text)
 x <- data.frame(s)
 ```
 
@@ -139,6 +139,8 @@ colnames(x_concatenated) <- c("sentence_id", "id", "sentence", "nchar")
 
 #join them together
 new <- left_join(x_concatenated, transcripts_id, by="id")
+
+new <- new %>% mutate(full_id = paste(id, sentence_id, sep="_"), full_id = as.character(full_id)) 
 ```
 
 #Perform LDA
@@ -147,13 +149,13 @@ require(text2vec)
 
 set.seed(397)
 
-tokenlen = (length(new$sentence)/3) * 2
+tokenlen = length(new$sentence)
 
 tokens = new$sentence[1:tokenlen] %>% 
   tolower %>%
   word_tokenizer
 
-it = itoken(tokens, ids = new$id[1:tokenlen], progressbar = FALSE)
+it = itoken(tokens, ids = new$full_id[1:tokenlen], progressbar = FALSE)
 v = create_vocabulary(it) %>% 
   prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
 vectorizer = vocab_vectorizer(v)
@@ -161,7 +163,7 @@ dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
 
 
 #hyperparameters
-lda_model = LDA$new(n_topics = 20, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+lda_model = LDA$new(n_topics = 10, doc_topic_prior = 0.1, topic_word_prior = 0.01)
 
 
 doc_topic_distr = 
@@ -170,13 +172,58 @@ doc_topic_distr =
                           progressbar = FALSE)
 ```
 
+```{r}
+#classify each sentence!!!
+test <- as.data.frame(doc_topic_distr)
+library(data.table)
+
+test <- setDT(test, keep.rownames = TRUE)[]
+setnames(test, 1, "full_id")
+
+#join them together
+classify <- left_join(new, test, by="full_id")
+
+#this labels the sentence as the topic it's most likely to be from
+#fix this so it has a probability threshold
+classify$results <- apply(classify[7:16], 1, function(x) max(names(which(x >0))))
+```
+
+Mapping to full sentences:
+```{r}
+x_full <- x %>% 
+  select(doc_id, sentence_id, sentence) %>% 
+  mutate(full_id = paste(doc_id, sentence_id, sep="_"), full_id = as.character(full_id), sentence_id = as.numeric(sentence_id)) %>% 
+  unique()
+
+colnames(x_full) <- c("id", "sentence_id", "full_sentence", "full_id")
+```
+
+```{r}
+full_new <- left_join(classify, x_full, by=c("full_id", "sentence_id"))
+
+full_new <- full_new %>% select(full_sentence, results, full_id, doc_id, sentence_id)
+```
+
+```{r}
+full_interviews_together <- full_new %>%
+  group_by(doc_id) %>%
+  summarise(text=paste(full_sentence, results, collapse=" "))
+```
+
+```{r}
+writeLines(full_interviews_together$text[1], "test.rmd")
+```
+
+VISUALIZE THE WORDS:
+
+Using LDAvis:
 Info on sharing this visualization: https://github.com/cpsievert/LDAvis
 ```{r message=FALSE}
 library(LDAvis)
 lda_model$plot()
 ```
 
-#Extract cluster words, make only unique words
+Using top words per cluster (get lambda value by deciding while looking at LDAvis):
 ```{r}
 words_in_clusters <- lda_model$get_top_words(n = 30, lambda = 0.3)
 words_in_clusters <- as.data.frame(words_in_clusters) %>% 
@@ -187,6 +234,9 @@ words_in_clusters <- as.data.frame(words_in_clusters) %>%
 write.csv(words_in_clusters, "personalexp_LDA_words.csv")
 ```
 
+
+
+ANOTHER WAY TO MAP, USING JUST THE WORDS:
 #Map the clusters
 ```{r}
 check.cluster.i <- function(df, i){
