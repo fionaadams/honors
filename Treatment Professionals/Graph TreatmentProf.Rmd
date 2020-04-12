@@ -1,0 +1,37 @@
+---
+title: "TreatmentProf Graph"
+author: "Fiona Adams"
+date: "4/11/2020"
+output: html_document
+---
+```{r}
+mapped_tp <- read.csv("mapped_treatmentprof.csv")
+```
+
+```{r}
+useful_topics <- c(1, 2, 3, 7, 8, 9, 11, 12, 13, 15)
+
+new_mapped_tp <- mapped_tp %>%
+  mutate(results = substring(results, 2), results=as.numeric(results)) %>%
+  filter(results %in% useful_topics) %>% 
+  mutate(
+    grand_topic = case_when(
+      results == 1 ~ 6,
+      results == 2 ~ 12,
+      results == 3 ~ 11,
+      results == 7 ~ 13,
+      results == 8 ~ 3,
+      results == 9 ~ 1,
+      results == 11 ~ 4,
+      results == 12 ~ 14,
+      results == 13 ~ 9,
+      results == 15 ~ 15
+    )
+  )
+```
+
+```{r}
+summary <- as.data.frame(table(new_mapped_tp$grand_topic))
+```
+
+
