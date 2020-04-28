@@ -209,7 +209,11 @@ colnames(x_full) <- c("id", "sentence_id", "full_sentence", "full_id")
 full_new <- left_join(x_full, classify, by=c("full_id", "sentence_id", "id"))
 
 full_new_map <- full_new %>% select(full_id, full_sentence, results, top_probs, doc_id, sentence_id)
+
+write.csv(full_new_map, "mapped_treatmentprof.csv")
 ```
+
+
 
 
 GET TOP WORDS AND VISUALIZE:
