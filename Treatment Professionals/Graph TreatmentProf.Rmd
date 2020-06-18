@@ -31,9 +31,7 @@ new_mapped_tp <- mapped_tp %>%
 ```
 
 ```{r}
-summary <- table(new_mapped_tp$grand_topic)
-barplot(summary, main="Theme Prevalence: Interviews of Treatment Professionals",
-   xlab="Theme Number")
+summary <- as.data.frame(table(new_mapped_tp$grand_topic))
 ```
 
 
