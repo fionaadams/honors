@@ -199,8 +199,6 @@ check.cluster.i <- function(df, i){
 <<<<<<< HEAD
 <<<<<<< HEAD
 full_new_map <- full_new %>% select(full_id, full_sentence, results, top_probs, doc_id, sentence_id)
-
-write.csv(full_new_map, "mapped_treatmentprof.csv")
 ```
 =======
 >>>>>>> parent of bcea32a... graph added and other changes
@@ -208,12 +206,15 @@ write.csv(full_new_map, "mapped_treatmentprof.csv")
 number_of_clusters <- 20
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> parent of bcea32a... graph added and other changes
 
 number_of_clusters <- 20
 
 <<<<<<< HEAD
+=======
+>>>>>>> parent of b36c65f... fix some things
 GET TOP WORDS AND VISUALIZE:
 =======
 =======
