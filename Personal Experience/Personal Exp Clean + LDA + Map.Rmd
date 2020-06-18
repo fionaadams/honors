@@ -46,7 +46,7 @@ transcripts_personal <- transcripts_final %>% filter(personal_experience==TRUE)
 Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
 ```{r}
 #annotate model, getting words separated and sentence id where words are taken from
-s <- udpipe_annotate(udmodel_english, transcripts_personal$text)
+s <- udpipe_annotate(udmodel_english, transcripts_familyexp$text)
 x <- data.frame(s)
 ```
 
@@ -163,7 +163,7 @@ dtm = create_dtm(it, vectorizer, type = "dgTMatrix")
 
 
 #hyperparameters
-lda_model = LDA$new(n_topics = 15, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+lda_model = LDA$new(n_topics = 10, doc_topic_prior = 0.1, topic_word_prior = 0.01)
 
 
 doc_topic_distr = 
@@ -184,15 +184,8 @@ setnames(test, 1, "full_id")
 classify <- left_join(new, test, by="full_id")
 
 #this labels the sentence as the topic it's most likely to be from
-#fix this so it has a probability threshold (potential solution: make new columns for each cluster/topic, if above write the threshold TRUE if below FALSE--similar to previous mapping)
-end = ncol(classify)
-
-classify$results <- colnames(classify[7:end])[max.col(classify[7:end], ties.method = "first")]
-classify$top_probs <- apply(classify[7:end], 1, function(x) max(x))
-```
-
-```{r}
-write.csv(classify, "mapped_data.csv")
+#fix this so it has a probability threshold
+classify$results <- apply(classify[7:16], 1, function(x) max(names(which(x >0))))
 ```
 
 Mapping to full sentences:
@@ -206,13 +199,27 @@ colnames(x_full) <- c("id", "sentence_id", "full_sentence", "full_id")
 ```
 
 ```{r}
-full_new <- left_join(x_full, classify, by=c("full_id", "sentence_id", "id"))
+full_new <- left_join(classify, x_full, by=c("full_id", "sentence_id"))
 
-full_new_map <- full_new %>% select(full_id, full_sentence, results, top_probs, doc_id, sentence_id)
+full_new <- full_new %>% select(full_sentence, results, full_id, doc_id, sentence_id)
 ```
 
+```{r}
+full_interviews_together <- full_new %>%
+  group_by(doc_id) %>%
+  summarise(text=paste(full_sentence, results, collapse=" "))
+```
 
-GET TOP WORDS AND VISUALIZE:
+```{r}
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "AS:", "<br> AS: ")
+full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "LB:", "<br> LB: ")
+```
+
+```{r}
+writeLines(full_interviews_together$text[1], "new_map.rmd")
+```
+
+VISUALIZE THE WORDS:
 
 Using LDAvis:
 Info on sharing this visualization: https://github.com/cpsievert/LDAvis
@@ -231,131 +238,6 @@ words_in_clusters <- as.data.frame(words_in_clusters) %>%
 ```{r}
 write.csv(words_in_clusters, "personalexp_LDA_words.csv")
 ```
-
-
-GET TOP SENTENCES:
-
-```{r}
-#top sentences V1
-full_new_map %>% 
-  filter(results=="V1", top_probs==1) %>%
-  select(full_sentence, top_probs, results)
-
-#top sentences V2
-full_new_map %>% 
-  filter(results=="V2", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V3
-full_new_map %>% 
-  filter(results=="V3", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V4
-full_new_map %>% 
-  filter(results=="V4", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V5
-full_new_map %>% 
-  filter(results=="V5", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V6
-full_new_map %>% 
-  filter(results=="V6", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V7
-full_new_map %>% 
-  filter(results=="V7", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V8
-full_new_map %>% 
-  filter(results=="V8", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V9
-full_new_map %>% 
-  filter(results=="V9", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V10
-full_new_map %>% 
-  filter(results=="V10", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V11
-full_new_map %>% 
-  filter(results=="V11", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V12
-full_new_map %>% 
-  filter(results=="V12", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V13
-full_new_map %>% 
-  filter(results=="V13", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V14
-full_new_map %>% 
-  filter(results=="V14", top_probs==1) %>%
-  select(full_sentence, top_probs)
-
-#top sentences V15
-full_new_map %>% 
-  filter(results=="V15", top_probs==1) %>%
-  select(full_sentence, top_probs)
-```
-
-
-GET FULL INTERVIEW:
-
-Put back into interview format:
-```{r}
-full_interviews_together <- full_new_map %>%
-  group_by(doc_id) %>%
-  summarise(text=paste(full_sentence, results, collapse=" "))
-```
-
-```{r}
-full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "AS:", "<br> AS: ")
-full_interviews_together$text[1] <- str_replace_all(full_interviews_together$text[1], "LB:", "<br> LB: ")
-```
-
-```{r}
-writeLines(full_interviews_together$text[1], "new_map.rmd")
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -390,7 +272,7 @@ new[new=="FALSE"]<- NA
 for(i in 1:number_of_clusters){
   ifelse(colnames(new)[6:ncol(new)][[i]]==paste("cluster", i, sep="_"), new[6:ncol(new)][[i]] <- str_replace(new[6:ncol(new)][[i]], "TRUE", paste(i)), "breaks")
 }
-``` 
+```
  
 ```{r}
 columns <- colnames(new)[10:ncol(new)]
