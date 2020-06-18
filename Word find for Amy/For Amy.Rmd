@@ -1,0 +1,40 @@
+---
+title: "For Amy"
+author: "Fiona Adams"
+date: "6/18/2020"
+output: html_document
+---
+Hi Amy! This will help you find words or phrases in the interviews, and return a .csv file with the sentences and interviews we found those words in!
+
+Step 1: Hit the "play" button on the top right of this gray box. That's all! It might take a second to run. You might get a bunch of red words--do not be alarmed! It does this sometimes, but it just means that it's notifying you that it's getting set up. Now you can move on to Step 2!
+```{r}
+library(udpipe)
+library(readtext)
+library(dplyr)
+library(stopwords)
+library(stringr)
+library(tidytext)
+
+sentences_ids <- read.csv("sentences_ids.csv")
+```
+
+Step 2: Write the word or phrase you're looking for here, and then hit the "play" button on the top right of the gray box. This will also be the name of the .csv file that exports.
+```{r}
+word_to_find <- "test"
+```
+
+Step 3: Hit the "play" button for this gray box. This will do the work of finding the word or phrase within the documents, and export a .csv file with your results! You will find this .csv file in the "Word Find for Amy" folder. 
+```{r}
+find_words <- as.data.frame(which(array(grepl(word_to_find,as.matrix(sentences_ids)),dim(sentences_ids)),T))
+
+found_words <- find_words %>% 
+  mutate(searched_for_word = word_to_find) %>%
+  mutate(name = sentences_ids$id[row], sentence = sentences_ids$full_sentence[row], full_id = sentences_ids$full_id[row]) %>%
+  select(searched_for_word, name, sentence, full_id)
+
+file_name <- paste0(word_to_find,".csv")
+write.csv(found_words, file_name)
+```
+
+Step 4: Want to look up another word? Start again at Step 1, skipping no steps. 
+

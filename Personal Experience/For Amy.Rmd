@@ -1,0 +1,86 @@
+---
+title: "For Amy"
+author: "Fiona Adams"
+date: "6/18/2020"
+output: html_document
+---
+
+```{r} 
+library(udpipe)
+library(readtext)
+library(corpus)
+library(dplyr)
+library(stopwords)
+library(stringr)
+library(tidytext)
+library(widyr)
+require(text2vec)
+library(LDAvis)
+```
+
+```{r}
+ud_model <- udpipe_download_model(language = "english")
+udmodel_english <- udpipe_load_model(ud_model$file_model)
+
+transcripts <- readtext("All_Transcripts/*.docx")
+```
+
+```{r}
+#get rid of .docx
+for(i in 1:nrow(transcripts)){
+  transcripts[1][i,] <- str_remove(transcripts[1][i,], ".docx")
+}
+
+names <- read.csv("names_descriptions.csv")
+colnames(names) <- c("doc_id", "description", "family_experience", "treatment_prof", "personal_experience")
+
+transcripts_final <- left_join(transcripts, names, by="doc_id")
+```
+
+```{r}
+transcripts_final$id <- seq.int(nrow(transcripts))
+transcripts_id <- transcripts_final %>% mutate(id = paste0("doc",id)) %>% select(doc_id, id)
+colnames(transcripts_id) <- c("id", "doc_id")
+```
+
+Annotate Interviews by Labeling Parts of Speech, and Separate by Sentences
+```{r}
+#annotate model, getting words separated and sentence id where words are taken from
+s <- udpipe_annotate(udmodel_english, transcripts_final$text)
+x <- data.frame(s)
+```
+
+```{r}
+x_full <- x %>% 
+  select(doc_id, sentence_id, sentence) %>% 
+  mutate(full_id = paste(doc_id, sentence_id, sep="_"), full_id = as.character(full_id), sentence_id = as.numeric(sentence_id)) %>% 
+  unique()
+
+colnames(x_full) <- c("doc_id", "sentence_id", "full_sentence", "full_id")
+```
+
+```{r}
+#Full_id has doc_id and then the sentence number
+sentences_ids <- 
+  left_join(x_full, transcripts_id, by="doc_id") %>%
+  select(full_id, id, full_sentence)
+```
+
+```{r}
+word_to_find <- "enabling"
+find_words <- as.data.frame(which(array(grepl(word_to_find,as.matrix(sentences_ids)),dim(sentences_ids)),T))
+```
+
+```{r}
+found_words <- find_words %>% 
+  mutate(searched_for_word = word_to_find) %>%
+  mutate(name = sentences_ids$id[row], sentence = sentences_ids$full_sentence[row], full_id = sentences_ids$full_id[row]) %>%
+  select(searched_for_word, name, sentence, full_id)
+```
+
+```{r}
+write.csv(found_words, "enabling.csv")
+```
+
+
+
